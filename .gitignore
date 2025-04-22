@@ -79,4 +79,9 @@ yarn-error.log*
 # Package locks
 package-lock.json
 yarn.lock
-pnpm-lock.yaml 
+pnpm-lock.yaml
+
+# Data files
+backend/data/
+*.db
+*.json 
