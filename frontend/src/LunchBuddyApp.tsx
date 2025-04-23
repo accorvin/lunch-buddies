@@ -1106,7 +1106,11 @@ const LunchBuddyApp = () => {
       <header className="pf-v5-c-page__header">
         <div className="pf-v5-c-page__header-brand">
           <div className="pf-v5-c-page__header-brand-toggle">
-            <img src="/redhat-logo.png" alt="Red Hat" className="h-8" />
+            <img 
+              src="/redhat-logo.png" 
+              alt="Red Hat" 
+              style={{ height: '40px', width: 'auto' }}
+            />
           </div>
           <div className="pf-v5-c-page__header-brand-link">
             <Title headingLevel="h1" size="2xl">Red Hat AI | Raleigh Lunch Buddy Program</Title>
