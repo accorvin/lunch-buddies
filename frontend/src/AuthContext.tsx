@@ -35,7 +35,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const checkAuth = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/auth/current-user`, {
+      const response = await fetch('/auth/current-user', {
         credentials: 'include',
         headers: {
           'Accept': 'application/json',
@@ -57,11 +57,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const login = () => {
-    window.location.href = `${import.meta.env.VITE_BACKEND_URL}/auth/google`;
+    window.location.href = '/auth/google';
   };
 
   const logout = () => {
-    window.location.href = `${import.meta.env.VITE_BACKEND_URL}/auth/logout`;
+    window.location.href = '/auth/logout';
   };
 
   return (
