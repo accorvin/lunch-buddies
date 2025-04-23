@@ -19,6 +19,14 @@ export default defineConfig(({ mode }) => {
         scss: {},
       },
     },
+    build: {
+      cssCodeSplit: false, // This will combine all CSS into one file
+      rollupOptions: {
+        output: {
+          manualChunks: undefined // This ensures CSS is not split into chunks
+        }
+      }
+    },
     server: {
       port: 3000,
       proxy: {
