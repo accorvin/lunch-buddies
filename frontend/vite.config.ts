@@ -22,17 +22,19 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 3000,
       proxy: {
-        '/api': {
+        '^/api/.*': {
           target: env.VITE_BACKEND_URL || 'http://localhost:8080',
           changeOrigin: true,
           secure: false,
-          ws: true
+          ws: true,
+          logLevel: 'debug'
         },
-        '/auth': {
+        '^/auth/.*': {
           target: env.VITE_BACKEND_URL || 'http://localhost:8080',
           changeOrigin: true,
           secure: false,
-          ws: true
+          ws: true,
+          logLevel: 'debug'
         }
       }
     }
