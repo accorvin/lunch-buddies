@@ -1,0 +1,33 @@
+# Git
+.git
+.gitignore
+
+# Node.js
+node_modules
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Documentation
+docs
+
+# Test files
+__tests__
+*.test.js
+*.spec.js
+
+# Build files
+dist
+build
+*.zip 
