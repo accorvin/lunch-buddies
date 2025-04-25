@@ -692,34 +692,76 @@ const LunchBuddyApp = () => {
     }
   }, [user, getUserEmail]);
 
-  const loadMyRegistration = async () => {
-    if (!user) return;
-    
+  const loadRegistration = async () => {
+    if (!user) {
+      console.log('No user logged in, clearing registration');
+      setMyRegistration(null);
+      return;
+    }
+
     try {
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        console.error('No auth token found');
+        return;
+      }
+
+      console.log('Loading registration for user:', user.id);
       const res = await fetch(`${BACKEND_URL}/api/my-registration`, {
-        credentials: 'include'
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
+
+      console.log('Registration response status:', res.status);
+      const responseText = await res.text();
+      console.log('Registration response:', responseText);
+
       if (res.ok) {
-        const data = await res.json();
+        const data = JSON.parse(responseText);
+        console.log('Parsed registration data:', data);
         setMyRegistration(data);
         if (data) {
           setName(data.name);
           setEmail(data.email);
           setSelectedDays([...data.availableDays]);
         }
+      } else {
+        console.error('Failed to load registration:', responseText);
+        setMyRegistration(null);
       }
     } catch (err) {
       console.error("Failed to load registration:", err);
+      setMyRegistration(null);
     }
   };
 
+  // Load registration when user changes
+  useEffect(() => {
+    console.log('User changed, loading registration');
+    loadRegistration();
+  }, [user]);
+
   const handleSubmit = async () => {
+    if (!user) {
+      showToast("Please login first", "danger");
+      return;
+    }
+
     if (!name || !email || !isValidEmail(email) || selectedDays.length === 0) {
       showToast("Please fill all required fields correctly.", "danger");
       return;
     }
 
     try {
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        showToast("Please login again", "danger");
+        logout();
+        return;
+      }
+
       const endpoint = isEditing ? "/api/registration" : "/api/register";
       const method = isEditing ? "PUT" : "POST";
       
@@ -727,6 +769,7 @@ const LunchBuddyApp = () => {
         method,
         headers: { 
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
           "x-user-email": getUserEmail()
         },
         credentials: 'include',
@@ -770,7 +813,10 @@ const LunchBuddyApp = () => {
 
         // Refresh participants list
         const participantsRes = await fetch(`${BACKEND_URL}/api/participants`, {
-          credentials: 'include'
+          credentials: 'include',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
         });
         if (participantsRes.ok) {
           const updatedParticipants = await participantsRes.json();
@@ -796,9 +842,13 @@ const LunchBuddyApp = () => {
 
   const handleCancelRegistration = async () => {
     try {
+      const token = localStorage.getItem('auth_token');
       const res = await fetch(`${BACKEND_URL}/api/registration`, {
         method: "DELETE",
-        credentials: 'include'
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
 
       if (res.ok) {
@@ -834,10 +884,12 @@ const LunchBuddyApp = () => {
   const handleMatch = async () => {
     try {
       console.log('Starting match process...');
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${BACKEND_URL}/api/match`, {
         method: 'POST',
         credentials: 'include',
         headers: {
+          'Authorization': `Bearer ${token}`,
           'x-user-email': getUserEmail()
         }
       });
@@ -871,8 +923,12 @@ const LunchBuddyApp = () => {
 
   const handleOpenParticipantsModal = async () => {
     try {
+      const token = localStorage.getItem('auth_token');
       const res = await fetch(`${BACKEND_URL}/api/participants`, {
-        credentials: 'include'
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
       if (res.ok) {
         const data = await res.json();
@@ -893,11 +949,13 @@ const LunchBuddyApp = () => {
     
     try {
       console.log('Sending update request with data:', data);
+      const token = localStorage.getItem('auth_token');
 
       const response = await fetch(`${BACKEND_URL}/api/registration`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
           'x-user-email': getUserEmail()
         },
         credentials: 'include',
@@ -939,11 +997,25 @@ const LunchBuddyApp = () => {
   };
 
   const handleSaveNew = async () => {
+    if (!user) {
+      showToast("Please login first", "danger");
+      return;
+    }
+
     try {
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        showToast("Please login again", "danger");
+        logout();
+        return;
+      }
+
       const response = await fetch(`${BACKEND_URL}/api/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'x-user-email': getUserEmail()
         },
         credentials: 'include',
         body: JSON.stringify({
@@ -964,7 +1036,10 @@ const LunchBuddyApp = () => {
 
       // Refresh participants list
       const participantsRes = await fetch(`${BACKEND_URL}/api/participants`, {
-        credentials: 'include'
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
       if (participantsRes.ok) {
         const updatedParticipants = await participantsRes.json();
@@ -980,10 +1055,12 @@ const LunchBuddyApp = () => {
 
   const handleGenerateTestData = async () => {
     try {
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${BACKEND_URL}/api/generate-test-data`, {
         method: 'POST',
         credentials: 'include',
         headers: {
+          'Authorization': `Bearer ${token}`,
           'x-user-email': getUserEmail()
         }
       });
@@ -1004,8 +1081,12 @@ const LunchBuddyApp = () => {
 
   const handleViewMatchHistory = async () => {
     try {
-      const response = await fetch("/api/match-history", {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`${BACKEND_URL}/api/match-history`, {
         credentials: "include",
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
       
       if (!response.ok) {
@@ -1040,7 +1121,7 @@ const LunchBuddyApp = () => {
 
   useEffect(() => {
     if (user) {
-      loadMyRegistration();
+      loadRegistration();
     }
   }, [user]);
 
@@ -1057,10 +1138,12 @@ const LunchBuddyApp = () => {
 
   const fetchStatistics = async () => {
     try {
+      const token = localStorage.getItem('auth_token');
       const response = await fetch(`${BACKEND_URL}/api/statistics`, {
         headers: {
-          "x-user-email": getUserEmail(),
-        },
+          'Authorization': `Bearer ${token}`,
+          'x-user-email': getUserEmail()
+        }
       });
 
       if (!response.ok) {
@@ -1422,25 +1505,25 @@ const LunchBuddyApp = () => {
                                 Current Participants
                               </Title>
                               <Table aria-label="Participants Table" variant={TableVariant.compact}>
-                                <Thead>
-                                  <Tr>
-                                    <Th>Name</Th>
-                                    <Th>Email</Th>
-                                    <Th>Available Days</Th>
-                                  </Tr>
-                                </Thead>
-                                <Tbody>
+              <Thead>
+                <Tr>
+                  <Th>Name</Th>
+                  <Th>Email</Th>
+                  <Th>Available Days</Th>
+                </Tr>
+              </Thead>
+              <Tbody>
                                   {participants
                                     .slice((page - 1) * perPage, page * perPage)
                                     .map((participant, idx) => (
                                       <Tr key={idx}>
-                                        <Td>{participant.name}</Td>
-                                        <Td>{participant.email}</Td>
+                    <Td>{participant.name}</Td>
+                    <Td>{participant.email}</Td>
                                         <Td>{participant.availableDays?.join(", ") || "—"}</Td>
-                                      </Tr>
-                                    ))}
-                                </Tbody>
-                              </Table>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
                               <div className="pf-v5-u-mt-md">
                                 <Pagination
                                   itemCount={participants.length}
@@ -1542,7 +1625,7 @@ const LunchBuddyApp = () => {
             </PFCard>
           </div>
         </div>
-      </Modal>
+          </Modal>
 
       <Modal
         variant="large"

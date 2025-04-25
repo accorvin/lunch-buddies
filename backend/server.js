@@ -57,21 +57,11 @@ const PORT = process.env.PORT || 8080;
 app.use(passport.initialize());
 
 // CORS configuration
-const corsConfig = {
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: [
-    'Content-Type',
-    'Authorization',
-    'Cache-Control',
-    'Accept',
-    'Origin'
-  ]
-};
-
-console.log('⚙️ CORS configuration:', corsConfig);
-app.use(cors(corsConfig));
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-email']
+}));
 
 // Add request logging middleware
 app.use((req, res, next) => {
@@ -555,18 +545,12 @@ app.post("/api/match", async (req, res) => {
 setInterval(scheduleMatches, 60 * 60 * 1000); // Check every hour
 scheduleMatches(); // Run immediately on startup
 
-app.post("/api/register", async (req, res) => {
+app.post("/api/register", authenticateToken, async (req, res) => {
   console.log("📝 Registration request received:", {
-    authenticated: req.isAuthenticated(),
+    user: req.user,
     body: req.body,
-    headers: req.headers,
-    session: req.session
+    headers: req.headers
   });
-
-  if (!req.isAuthenticated()) {
-    console.log("❌ Not authenticated");
-    return res.status(401).json({ error: "Not authenticated" });
-  }
 
   const { name, email, availableDays } = req.body;
   
@@ -671,15 +655,13 @@ app.get("/api/is-admin", (req, res) => {
   res.json({ isAdmin });
 });
 
-app.get("/api/my-registration", async (req, res) => {
-  if (!req.isAuthenticated()) {
-    return res.status(401).json({ error: "Not authenticated" });
-  }
-
+app.get("/api/my-registration", authenticateToken, async (req, res) => {
   try {
+    console.log("🔍 Fetching registration for user:", req.user.id);
     const raw = await fs.readFile(dataPath, "utf-8");
     const all = JSON.parse(raw);
     const myRegistration = all.find(r => r.userId === req.user.id);
+    console.log("📝 Found registration:", myRegistration);
     res.json(myRegistration || null);
   } catch (err) {
     console.error("❌ Failed to retrieve registration:", err);
@@ -687,11 +669,7 @@ app.get("/api/my-registration", async (req, res) => {
   }
 });
 
-app.put("/api/registration", async (req, res) => {
-  if (!req.isAuthenticated()) {
-    return res.status(401).json({ error: "Not authenticated" });
-  }
-
+app.put("/api/registration", authenticateToken, async (req, res) => {
   const { name, email, availableDays } = req.body;
   
   // Validate input
@@ -712,11 +690,7 @@ app.put("/api/registration", async (req, res) => {
   }
 });
 
-app.delete("/api/registration", async (req, res) => {
-  if (!req.isAuthenticated()) {
-    return res.status(401).json({ error: "Not authenticated" });
-  }
-
+app.delete("/api/registration", authenticateToken, async (req, res) => {
   try {
     let all = [];
     try {
