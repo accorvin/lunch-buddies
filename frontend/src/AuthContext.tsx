@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { BACKEND_URL } from './config';
 
 interface User {
+  id: string;
   name: string;
   email: string;
   picture?: string;
@@ -35,16 +36,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         
         console.log('📡 AuthContext: Response status:', response.status);
-        console.log('📡 AuthContext: Response headers:', Object.fromEntries(response.headers.entries()));
-        
+        const responseText = await response.text();
+        console.log('📡 AuthContext: Raw response:', responseText);
+
         if (response.ok) {
-          const userData = await response.json();
-          console.log('👤 AuthContext: User data received:', userData);
-          setUser(userData);
+          try {
+            const userData = JSON.parse(responseText);
+            console.log('👤 AuthContext: User data received:', userData);
+            if (userData.id && userData.name && userData.email) {
+              setUser(userData);
+            } else {
+              console.error('❌ AuthContext: Invalid user data format:', userData);
+              setUser(null);
+            }
+          } catch (parseError) {
+            console.error('❌ AuthContext: Error parsing user data:', parseError);
+            setUser(null);
+          }
         } else {
           console.log('❌ AuthContext: No authenticated user found');
-          const errorText = await response.text();
-          console.log('❌ AuthContext: Error details:', errorText);
+          console.log('❌ AuthContext: Error details:', responseText);
           setUser(null);
         }
       } catch (error) {
@@ -62,10 +73,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = () => {
     console.log('🔐 AuthContext: Initiating login process');
     console.log('🌐 AuthContext: Redirecting to:', `${BACKEND_URL}/auth/google`);
-    // Add a small delay to ensure logs are visible
-    setTimeout(() => {
-      window.location.href = `${BACKEND_URL}/auth/google`;
-    }, 100);
+    window.location.href = `${BACKEND_URL}/auth/google`;
   };
 
   const logout = async () => {
@@ -75,8 +83,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         method: 'POST',
         credentials: 'include',
         headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
+          'Accept': 'application/json'
         }
       });
       
@@ -85,6 +92,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (response.ok) {
         console.log('✅ AuthContext: Logout successful');
         setUser(null);
+        window.location.href = '/';
       } else {
         console.error('❌ AuthContext: Logout failed');
         const errorText = await response.text();
@@ -99,16 +107,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return user?.email || '';
   };
 
-  const contextValue = {
-    user,
-    loading,
-    login,
-    logout,
-    getUserEmail
-  };
-
   return (
-    <AuthContext.Provider value={contextValue}>
+    <AuthContext.Provider value={{ user, loading, login, logout, getUserEmail }}>
       {children}
     </AuthContext.Provider>
   );
