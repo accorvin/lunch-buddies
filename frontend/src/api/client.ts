@@ -1,12 +1,26 @@
 import { BACKEND_URL } from '../config';
 
+// Get token from URL or localStorage
+function getAuthToken(): string | null {
+  // Check URL for token (from OAuth redirect)
+  const urlParams = new URLSearchParams(window.location.search);
+  const token = urlParams.get('token');
+  if (token) {
+    localStorage.setItem('auth_token', token);
+    // Remove token from URL
+    window.history.replaceState({}, document.title, window.location.pathname);
+    return token;
+  }
+  // Check localStorage
+  return localStorage.getItem('auth_token');
+}
+
 // Default fetch options for all API requests
 const defaultOptions: RequestInit = {
-  credentials: 'include', // Always send cookies
   headers: {
     'Content-Type': 'application/json',
   },
-  mode: 'cors', // Explicitly set CORS mode
+  mode: 'cors',
 };
 
 // Helper function to make API requests
@@ -16,6 +30,12 @@ export async function apiRequest(
 ): Promise<any> {
   const url = `${BACKEND_URL}${endpoint}`;
   
+  // Get auth token
+  const token = getAuthToken();
+  if (!token && !endpoint.startsWith('/auth/google')) {
+    throw new Error('Not authenticated');
+  }
+  
   // Merge default options with provided options
   const fetchOptions = {
     ...defaultOptions,
@@ -23,6 +43,7 @@ export async function apiRequest(
     headers: {
       ...defaultOptions.headers,
       ...options.headers,
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
     },
   };
 
@@ -52,4 +73,9 @@ export async function apiRequest(
     console.error('API request failed:', error);
     throw error;
   }
+}
+
+// Clear auth token
+export function clearAuthToken(): void {
+  localStorage.removeItem('auth_token');
 } 

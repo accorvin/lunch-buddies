@@ -4,8 +4,9 @@ const fsSync = require("fs");
 const path = require("path");
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
-const session = require('express-session');
-const cookieParser = require('cookie-parser');
+const jwt = require('jsonwebtoken');
+const cors = require('cors');
+const session = require("express-session");
 
 // Required environment variables
 const requiredEnvVars = [
@@ -13,7 +14,7 @@ const requiredEnvVars = [
   'SLACK_ADMIN_EMAIL',
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET',
-  'SESSION_SECRET',
+  'JWT_SECRET',
   'BACKEND_URL'
 ];
 
@@ -47,16 +48,15 @@ try {
 }
 
 const express = require("express");
-const cors = require("cors");
 const bodyParser = require("body-parser");
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// Add cookie-parser middleware before session middleware
-app.use(cookieParser());
+// Initialize passport
+app.use(passport.initialize());
 
-// CORS configuration - must be before other middleware
+// CORS configuration
 const corsConfig = {
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   credentials: true,
@@ -64,70 +64,41 @@ const corsConfig = {
   allowedHeaders: [
     'Content-Type',
     'Authorization',
-    'Cookie',
-    'x-user-email',
     'Cache-Control',
     'Accept',
-    'Origin',
-    'Sec-Fetch-Site',
-    'Sec-Fetch-Mode',
-    'Sec-Fetch-Dest'
-  ],
-  exposedHeaders: ['Set-Cookie']
+    'Origin'
+  ]
 };
 
 console.log('⚙️ CORS configuration:', corsConfig);
 app.use(cors(corsConfig));
 
-// Session configuration
-const isProduction = process.env.NODE_ENV === 'production';
-console.log('⚙️ Environment:', process.env.NODE_ENV);
-console.log('⚙️ Frontend URL:', process.env.FRONTEND_URL);
-
-const sessionConfig = {
-  secret: process.env.SESSION_SECRET,
-  resave: true,
-  saveUninitialized: true,
-  proxy: true, // Trust the reverse proxy
-  cookie: { 
-    secure: isProduction, // Must be true in production
-    sameSite: isProduction ? 'none' : 'lax', // Must be 'none' in production with secure:true
-    httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    path: '/',
-    // Remove domain setting to allow cross-domain cookies
-    domain: undefined
-  },
-  name: 'lunchbuddy.sid'
-};
-
-console.log('⚙️ Session configuration:', {
-  ...sessionConfig,
-  secret: '[HIDDEN]'
-});
-
-if (isProduction) {
-  app.set('trust proxy', 1); // Trust first proxy
-}
-
-app.use(session(sessionConfig));
-
-// Initialize Passport and restore authentication state from session
-app.use(passport.initialize());
-app.use(passport.session());
-
 // Add request logging middleware
 app.use((req, res, next) => {
   console.log(`\n🌐 ${new Date().toISOString()} - ${req.method} ${req.url}`);
   console.log('📝 Request Headers:', req.headers);
-  console.log('🍪 Parsed Cookies:', req.cookies);
-  console.log('🔑 Session ID:', req.sessionID);
-  console.log('🔑 Session:', req.session);
-  console.log('🔒 Secure context:', req.secure);
-  console.log('🌍 Protocol:', req.protocol);
-  console.log('🏠 Host:', req.get('host'));
   next();
 });
+
+// JWT authentication middleware
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    console.log('❌ No token provided');
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  try {
+    const user = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = user;
+    next();
+  } catch (err) {
+    console.error('❌ Token verification failed:', err);
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+};
 
 // Passport configuration
 passport.use(new GoogleStrategy({
@@ -143,21 +114,58 @@ passport.use(new GoogleStrategy({
   }
 ));
 
+// Passport serialization
 passport.serializeUser((user, done) => {
-  console.log('📥 Serializing user:', user.displayName);
-  const userData = {
-    id: user.id,
-    name: user.displayName,
-    email: user.emails?.[0]?.value,
-    picture: user.photos?.[0]?.value
-  };
-  console.log('💾 Serialized user data:', userData);
-  done(null, userData);
+  done(null, user.id);
 });
 
-passport.deserializeUser((userData, done) => {
-  console.log('📤 Deserializing user:', userData.name);
-  done(null, userData);
+// Passport deserialization
+passport.deserializeUser((id, done) => {
+  // Since we're using JWT tokens now, we don't need to store the full user object
+  // Just pass the ID through
+  done(null, { id });
+});
+
+// Google OAuth routes
+app.get('/auth/google',
+  passport.authenticate('google', { scope: ['profile', 'email'] })
+);
+
+app.get('/auth/google/callback',
+  passport.authenticate('google', { session: false, failureRedirect: '/login' }),
+  (req, res) => {
+    console.log('✅ Google authentication callback successful');
+    console.log('👤 Authenticated user:', req.user);
+    
+    // Create JWT token
+    const token = jwt.sign({
+      id: req.user.id,
+      name: req.user.displayName,
+      email: req.user.emails?.[0]?.value,
+      picture: req.user.photos?.[0]?.value
+    }, process.env.JWT_SECRET, { expiresIn: '24h' });
+    
+    // Redirect to frontend with token
+    const frontendUrl = new URL(process.env.FRONTEND_URL || 'http://localhost:3000');
+    frontendUrl.searchParams.set('token', token);
+    
+    // Log the redirect URL
+    console.log('🔄 Redirecting to:', frontendUrl.toString());
+    console.log('🎟️ Token:', token);
+    
+    res.redirect(frontendUrl.toString());
+  }
+);
+
+// Protected routes
+app.get('/auth/current-user', authenticateToken, (req, res) => {
+  console.log('👥 Current user request received');
+  console.log('👤 User:', req.user);
+  res.json(req.user);
+});
+
+app.post('/auth/logout', (req, res) => {
+  res.json({ message: 'Logged out successfully' });
 });
 
 app.use(bodyParser.json());
@@ -661,76 +669,6 @@ app.get("/api/is-admin", (req, res) => {
   const isAdmin = adminEmails.includes(email);
   console.log('Checking admin status for', email, ':', isAdmin);
   res.json({ isAdmin });
-});
-
-// Authentication routes
-app.get('/auth/google',
-  (req, res, next) => {
-    console.log('🔑 Received Google auth request');
-    console.log('📝 Auth Headers:', req.headers);
-    next();
-  },
-  passport.authenticate('google', { scope: ['profile', 'email'] })
-);
-
-app.get('/auth/google/callback',
-  (req, res, next) => {
-    console.log('🔄 Received Google auth callback');
-    console.log('📝 Callback Headers:', req.headers);
-    console.log('🔑 Session before auth:', req.session);
-    next();
-  },
-  passport.authenticate('google', { failureRedirect: '/login' }),
-  (req, res) => {
-    console.log('✅ Google authentication callback successful');
-    console.log('👤 Authenticated user:', req.user);
-    console.log('🔑 Session after auth:', req.session);
-    
-    req.session.save((err) => {
-      if (err) {
-        console.error('❌ Error saving session:', err);
-      } else {
-        console.log('✅ Session saved successfully');
-      }
-      res.redirect(process.env.FRONTEND_URL || 'http://localhost:3000');
-    });
-  }
-);
-
-app.get('/auth/current-user', (req, res) => {
-  console.log('👥 Current user request received');
-  console.log('🔑 Session:', req.session);
-  console.log('👤 User:', req.user);
-  console.log('🔒 isAuthenticated:', req.isAuthenticated());
-  
-  if (!req.isAuthenticated()) {
-    console.log('❌ User not authenticated');
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
-  
-  console.log('✅ Returning user data:', req.user);
-  res.json({
-    id: req.user.id,
-    name: req.user.name,
-    email: req.user.email,
-    picture: req.user.picture
-  });
-});
-
-app.post('/auth/logout', (req, res) => {
-  console.log('🚪 Logout request received');
-  console.log('👤 Current user:', req.user);
-  console.log('🔑 Session before logout:', req.session);
-  
-  req.logout((err) => {
-    if (err) {
-      console.error('❌ Error during logout:', err);
-      return res.status(500).json({ error: 'Failed to logout' });
-    }
-    console.log('✅ User logged out successfully');
-    console.log('🔑 Session after logout:', req.session);
-    res.json({ message: 'Logged out successfully' });
-  });
 });
 
 app.get("/api/my-registration", async (req, res) => {

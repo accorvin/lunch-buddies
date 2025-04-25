@@ -18,6 +18,21 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Get token from URL or localStorage
+function getAuthToken(): string | null {
+  // Check URL for token (from OAuth redirect)
+  const urlParams = new URLSearchParams(window.location.search);
+  const token = urlParams.get('token');
+  if (token) {
+    localStorage.setItem('auth_token', token);
+    // Remove token from URL
+    window.history.replaceState({}, document.title, window.location.pathname);
+    return token;
+  }
+  // Check localStorage
+  return localStorage.getItem('auth_token');
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -28,10 +43,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log('🔍 AuthContext: Starting user check');
         console.log('🌐 AuthContext: Using backend URL:', BACKEND_URL);
         
+        const token = getAuthToken();
+        if (!token) {
+          console.log('❌ AuthContext: No token found');
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+
         const response = await fetch(`${BACKEND_URL}/auth/current-user`, {
-          credentials: 'include',
           headers: {
-            'Accept': 'application/json'
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${token}`
           }
         });
         
@@ -79,27 +102,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     try {
       console.log('🔓 AuthContext: Initiating logout process');
-      const response = await fetch(`${BACKEND_URL}/auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json'
-        }
-      });
-      
-      console.log('📡 AuthContext: Logout response status:', response.status);
-      
-      if (response.ok) {
-        console.log('✅ AuthContext: Logout successful');
-        setUser(null);
-        window.location.href = '/';
-      } else {
-        console.error('❌ AuthContext: Logout failed');
-        const errorText = await response.text();
-        console.error('❌ AuthContext: Logout error details:', errorText);
-      }
+      localStorage.removeItem('auth_token');
+      setUser(null);
+      window.location.href = '/';
     } catch (error) {
-      console.error('❌ AuthContext: Error during logout:', error);
+      console.error('❌ AuthContext: Logout error:', error);
     }
   };
 
