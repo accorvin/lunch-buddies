@@ -320,9 +320,15 @@ const StatisticsView: React.FC = () => {
   useEffect(() => {
     const fetchStatistics = async () => {
       try {
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
+          throw new Error('Not authenticated');
+        }
+
         const response = await fetch(`${BACKEND_URL}/api/statistics`, {
           credentials: 'include',
           headers: {
+            'Authorization': `Bearer ${token}`,
             'x-user-email': getUserEmail()
           }
         });
@@ -666,9 +672,15 @@ const LunchBuddyApp = () => {
       console.log('Checking admin status for email:', userEmail);
       
       // Check admin status
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        console.error('No auth token found for admin check');
+        return;
+      }
       fetch(`${BACKEND_URL}/api/is-admin`, {
         credentials: 'include',
         headers: {
+          'Authorization': `Bearer ${token}`,
           'x-user-email': userEmail
         }
       })
@@ -843,6 +855,11 @@ const LunchBuddyApp = () => {
   const handleCancelRegistration = async () => {
     try {
       const token = localStorage.getItem('auth_token');
+      if (!token) {
+        console.error('No auth token found for cancel registration');
+        showToast('Please login again', 'danger');
+        return;
+      }
       const res = await fetch(`${BACKEND_URL}/api/registration`, {
         method: "DELETE",
         credentials: 'include',
@@ -863,7 +880,10 @@ const LunchBuddyApp = () => {
         
         // Refresh participants list
         const participantsRes = await fetch(`${BACKEND_URL}/api/participants`, {
-          credentials: 'include'
+          credentials: 'include',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
         });
         if (participantsRes.ok) {
           const updatedParticipants = await participantsRes.json();
@@ -982,7 +1002,10 @@ const LunchBuddyApp = () => {
 
       // Refresh participants list
       const participantsRes = await fetch(`${BACKEND_URL}/api/participants`, {
-        credentials: 'include'
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
       if (participantsRes.ok) {
         const updatedParticipants = await participantsRes.json();
@@ -1005,8 +1028,8 @@ const LunchBuddyApp = () => {
     try {
       const token = localStorage.getItem('auth_token');
       if (!token) {
-        showToast("Please login again", "danger");
-        logout();
+        console.error('No auth token found for new registration');
+        showToast('Please login again', 'danger');
         return;
       }
 
@@ -1056,6 +1079,11 @@ const LunchBuddyApp = () => {
   const handleGenerateTestData = async () => {
     try {
       const token = localStorage.getItem('auth_token');
+      if (!token) {
+        console.error('No auth token found for test data generation');
+        showToast('Please login again', 'danger');
+        return;
+      }
       const response = await fetch(`${BACKEND_URL}/api/generate-test-data`, {
         method: 'POST',
         credentials: 'include',
@@ -1082,6 +1110,13 @@ const LunchBuddyApp = () => {
   const handleViewMatchHistory = async () => {
     try {
       const token = localStorage.getItem('auth_token');
+      if (!token) {
+        console.error('No auth token found for match history');
+        showToast('Please login again', 'danger');
+        return;
+      }
+
+      console.log('Fetching match history with token');
       const response = await fetch(`${BACKEND_URL}/api/match-history`, {
         credentials: "include",
         headers: {
@@ -1089,11 +1124,16 @@ const LunchBuddyApp = () => {
         }
       });
       
+      console.log('Match history response status:', response.status);
+      const responseText = await response.text();
+      console.log('Match history response:', responseText);
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      const data = await response.json();
+      const data = JSON.parse(responseText);
+      console.log('Parsed match history data:', data);
       
       if (!Array.isArray(data)) {
         console.error("❌ Invalid match history data format");
@@ -1101,21 +1141,29 @@ const LunchBuddyApp = () => {
       }
       
       // Fetch registrations to get user details
-      const registrationsResponse = await fetch("/api/participants", {
+      const registrationsResponse = await fetch(`${BACKEND_URL}/api/participants`, {
         credentials: "include",
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
+      
+      console.log('Registrations response status:', registrationsResponse.status);
+      const registrationsText = await registrationsResponse.text();
+      console.log('Registrations response:', registrationsText);
       
       if (!registrationsResponse.ok) {
         throw new Error(`HTTP error! status: ${registrationsResponse.status}`);
       }
       
-      const registrationsData = await registrationsResponse.json();
+      const registrationsData = JSON.parse(registrationsText);
       
       setRegistrations(registrationsData);
       setMatchHistory(data);
       setShowMatchHistory(true);
     } catch (error) {
       console.error("❌ Error fetching match history:", error);
+      showToast(error instanceof Error ? error.message : 'Failed to fetch match history', 'danger');
     }
   };
 
@@ -1137,32 +1185,76 @@ const LunchBuddyApp = () => {
   }, [selectedDays, isEditing, myRegistration]);
 
   const fetchStatistics = async () => {
+    if (!user) {
+      console.log('No user logged in, skipping statistics fetch');
+      return;
+    }
+
     try {
       const token = localStorage.getItem('auth_token');
+      if (!token) {
+        console.error('No auth token found for statistics');
+        showToast('Please login again', 'danger');
+        return;
+      }
+
+      console.log('Fetching statistics with token');
       const response = await fetch(`${BACKEND_URL}/api/statistics`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'x-user-email': getUserEmail()
-        }
+        },
+        credentials: 'include'
       });
 
+      console.log('Statistics response status:', response.status);
+      const responseText = await response.text();
+      console.log('Statistics response:', responseText);
+
       if (!response.ok) {
-        throw new Error("Failed to fetch statistics");
+        if (response.status === 401) {
+          showToast('Please login again', 'danger');
+          logout();
+        } else {
+          throw new Error(`Failed to fetch statistics: ${responseText}`);
+        }
+        return;
       }
 
-      const data = await response.json();
+      const data = JSON.parse(responseText);
+      console.log('Parsed statistics data:', data);
       setStatistics(data);
     } catch (err) {
       console.error("Error fetching statistics:", err);
-      setError("Failed to load statistics");
+      setError(err instanceof Error ? err.message : "Failed to load statistics");
+      showToast('Failed to load statistics', 'danger');
     }
   };
+
+  // Load statistics when user changes
+  useEffect(() => {
+    if (user) {
+      console.log('User logged in, fetching statistics');
+      fetchStatistics();
+    } else {
+      console.log('No user, clearing statistics');
+      setStatistics(null);
+    }
+  }, [user]);
 
   useEffect(() => {
     const loadParticipants = async () => {
       try {
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
+          console.error('No auth token found for participants');
+          return;
+        }
         const res = await fetch(`${BACKEND_URL}/api/participants`, {
-          credentials: 'include'
+          credentials: 'include',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
         });
         if (res.ok) {
           const data = await res.json();

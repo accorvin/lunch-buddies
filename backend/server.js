@@ -486,10 +486,13 @@ async function performMatching() {
     
     // Send notifications for new matches
     for (const match of newMatches) {
-      const person1 = registrations.find(r => r.users[0] === r.users[0]);
-      const person2 = registrations.find(r => r.users[1] === r.users[1]);
+      const person1 = registrations.find(r => r.userId === match.users[0]);
+      const person2 = registrations.find(r => r.userId === match.users[1]);
       
-      if (!person1 || !person2) continue;
+      if (!person1 || !person2) {
+        console.error('❌ Could not find participants for match:', match);
+        continue;
+      }
       
       const message = `🎉 You've been matched for lunch with ${person2.name}!\n` +
         `Common available days: ${match.commonDays.join(", ")}\n` +
@@ -527,11 +530,7 @@ async function performMatching() {
 }
 
 // Add test matching endpoint
-app.post("/api/match", async (req, res) => {
-  if (!req.isAuthenticated()) {
-    return res.status(401).json({ error: "Not authenticated" });
-  }
-
+app.post("/api/match", authenticateToken, async (req, res) => {
   try {
     const matches = await performMatching();
     res.json(matches);
@@ -616,7 +615,7 @@ app.post("/api/register", authenticateToken, async (req, res) => {
   }
 });
 
-app.get("/api/participants", async (_req, res) => {
+app.get("/api/participants", authenticateToken, async (_req, res) => {
   try {
     let participants = [];
     try {
@@ -641,8 +640,8 @@ app.get("/api/participants", async (_req, res) => {
   }
 });
 
-app.get("/api/is-admin", (req, res) => {
-  const email = req.headers["x-user-email"];
+app.get("/api/is-admin", authenticateToken, (req, res) => {
+  const email = req.user.email;
   
   // In development mode, always return true if user is authenticated
   if (process.env.NODE_ENV === 'development') {
@@ -714,12 +713,9 @@ app.delete("/api/registration", authenticateToken, async (req, res) => {
 });
 
 // Add statistics endpoint
-app.get("/api/statistics", async (req, res) => {
-  if (!req.isAuthenticated()) {
-    return res.status(401).json({ error: "Not authenticated" });
-  }
-
+app.get("/api/statistics", authenticateToken, async (req, res) => {
   try {
+    console.log("📊 Fetching statistics for user:", req.user.id);
     const raw = await fs.readFile(dataPath, "utf-8");
     const all = JSON.parse(raw);
     
@@ -761,6 +757,7 @@ app.get("/api/statistics", async (req, res) => {
       lastUpdated: new Date().toISOString()
     };
     
+    console.log("📊 Statistics calculated:", statistics);
     res.json(statistics);
   } catch (err) {
     console.error("❌ Failed to calculate statistics:", err);
@@ -768,83 +765,62 @@ app.get("/api/statistics", async (req, res) => {
   }
 });
 
-// Add test data generation endpoint
-app.post("/api/generate-test-data", async (req, res) => {
-  if (!req.isAuthenticated()) {
-    return res.status(401).json({ error: "Not authenticated" });
-  }
-
+// Add test data generation function
+async function generateTestData() {
   try {
-    // Read existing registrations
-    let existingRegistrations = [];
-    try {
-      const raw = await fs.readFile(dataPath, "utf-8");
-      existingRegistrations = JSON.parse(raw);
-      
-      // Validate data structure
-      if (!Array.isArray(existingRegistrations)) {
-        console.error("❌ Corrupted data file - resetting to empty array");
-        existingRegistrations = [];
-      }
-    } catch (e) {
-      if (e.code !== 'ENOENT') {
-        console.error("❌ Error reading registrations file:", e);
-      }
-      // File doesn't exist or is corrupted, start with empty array
-    }
-
+    console.log("🔧 Generating test data...");
     const testRegistrations = [
       {
-        id: "test-1",
         name: "Test User 1",
         email: "test1@example.com",
         availableDays: ["Monday", "Wednesday", "Friday"],
-        userId: "test-user-1",
+        userId: "test1",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       },
       {
-        id: "test-2",
         name: "Test User 2",
         email: "test2@example.com",
-        availableDays: ["Tuesday", "Wednesday", "Thursday"],
-        userId: "test-user-2",
+        availableDays: ["Tuesday", "Thursday"],
+        userId: "test2",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       },
       {
-        id: "test-3",
         name: "Test User 3",
         email: "test3@example.com",
         availableDays: ["Monday", "Wednesday", "Thursday"],
-        userId: "test-user-3",
+        userId: "test3",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       }
     ];
 
-    // Add test registrations to existing data
-    const updatedRegistrations = [...existingRegistrations, ...testRegistrations];
-    
-    // Save the updated registrations
-    await fs.writeFile(dataPath, JSON.stringify(updatedRegistrations, null, 2));
-
+    // Save test registrations
+    await fs.writeFile(dataPath, JSON.stringify(testRegistrations, null, 2));
     console.log("✅ Test data generated successfully");
-    res.json({ message: "Test data generated successfully", registrations: testRegistrations });
-  } catch (error) {
-    console.error("❌ Error generating test data:", error);
+    return testRegistrations;
+  } catch (err) {
+    console.error("❌ Failed to generate test data:", err);
+    throw err;
+  }
+}
+
+// Add test data generation endpoint
+app.post("/api/generate-test-data", authenticateToken, async (req, res) => {
+  try {
+    const registrations = await generateTestData();
+    res.json({ registrations });
+  } catch (err) {
+    console.error("❌ Failed to generate test data:", err);
     res.status(500).json({ error: "Failed to generate test data" });
   }
 });
 
 // Add match history endpoint
-app.get("/api/match-history", async (req, res) => {
-  if (!req.isAuthenticated()) {
-    return res.status(401).json({ error: "Not authenticated" });
-  }
-
+app.get("/api/match-history", authenticateToken, async (req, res) => {
   try {
-    console.log("🔍 Fetching match history...");
+    console.log("🔍 Fetching match history for user:", req.user.id);
     const raw = await fs.readFile(matchHistoryPath, "utf-8");
     console.log("Raw match history data:", raw);
     const history = JSON.parse(raw);
