@@ -802,6 +802,46 @@ setTimeout(() => {
     scheduleMatches();
 }, 5000); // Delay 5s
 
+// Feedback endpoint
+app.post('/api/feedback', authenticateToken, async (req, res) => {
+  const { feedback } = req.body;
+  const user = req.user;
+
+  if (!feedback || typeof feedback !== 'string' || feedback.trim().length === 0) {
+    return res.status(400).json({ error: 'Feedback text is required' });
+  }
+
+  try {
+    // Get admin Slack ID
+    const adminSlackId = await getSlackUserIdByEmail(process.env.SLACK_ADMIN_EMAIL);
+    if (!adminSlackId) {
+      console.error('❌ Could not find Slack ID for admin email');
+      return res.status(500).json({ error: 'Failed to send feedback' });
+    }
+
+    // Construct feedback message
+    const message = `📝 New feedback from ${user.name} (${user.email}):
+    
+${feedback}`;
+
+    // Send feedback via Slack
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Test Mode] Would send feedback to admin:', message);
+      return res.json({ message: 'Feedback received (test mode)' });
+    }
+
+    const sent = await sendSlackDM(adminSlackId, message);
+    if (!sent) {
+      throw new Error('Failed to send feedback via Slack');
+    }
+
+    res.json({ message: 'Feedback submitted successfully' });
+  } catch (err) {
+    console.error('❌ Error processing feedback:', err);
+    res.status(500).json({ error: 'Failed to process feedback' });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);

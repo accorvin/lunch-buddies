@@ -72,9 +72,11 @@ import {
   MapMarkerAltIcon,
   PlusCircleIcon,
   TrashIcon,
-  TimesIcon
+  TimesIcon,
+  CommentIcon
 } from '@patternfly/react-icons';
 import { BACKEND_URL } from './config';
+import FeedbackForm from './components/FeedbackForm';
 
 // --- Shared Components ---
 // Moved to top to potentially help linter
@@ -732,6 +734,8 @@ const LunchBuddyApp = () => {
   const [historyLocationFilter, setHistoryLocationFilter] = useState<string | null>(null);
   const [statsLocationFilter, setStatsLocationFilter] = useState<string | null>(null);
 
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+
   const isDevelopment = import.meta.env.DEV;
 
   // --- Helper Functions ---
@@ -1112,6 +1116,19 @@ const LunchBuddyApp = () => {
       }
   };
 
+  const handleSubmitFeedback = async (feedback: string) => {
+    try {
+      await fetchWithAuth(`${BACKEND_URL}/api/feedback`, {
+        method: 'POST',
+        body: JSON.stringify({ feedback })
+      });
+      showToast('Feedback submitted successfully!', 'success');
+    } catch (error) {
+      console.error('Failed to submit feedback:', error);
+      showToast('Failed to submit feedback. Please try again.', 'danger');
+      throw error;
+    }
+  };
 
   // --- Render Logic ---
 
@@ -1552,6 +1569,38 @@ const LunchBuddyApp = () => {
                </>
            )}
       </Modal>
+
+      {/* Feedback Button */}
+      <div style={{
+        position: 'fixed',
+        bottom: '2rem',
+        right: '2rem',
+        zIndex: 2000
+      }}>
+        <PFButton
+          variant="primary"
+          onClick={() => setIsFeedbackModalOpen(true)}
+          icon={<CommentIcon />}
+          style={{ 
+            borderRadius: '50%',
+            width: '50px',
+            height: '50px',
+            boxShadow: '0 4px 8px rgba(0, 0, 0, 0.3)',
+            padding: '0',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center'
+          }}
+          aria-label="Provide feedback"
+        />
+      </div>
+
+      {/* Feedback Form Modal */}
+      <FeedbackForm
+        isOpen={isFeedbackModalOpen}
+        onClose={() => setIsFeedbackModalOpen(false)}
+        onSubmit={handleSubmitFeedback}
+      />
 
     </div>
   );
