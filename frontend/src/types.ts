@@ -25,4 +25,11 @@ export interface MatchRound {
     users: string[];
     commonDays: string[];
   }>;
+}
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  picture?: string;
 } 

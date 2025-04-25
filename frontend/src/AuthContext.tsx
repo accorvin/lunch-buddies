@@ -1,13 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { BACKEND_URL } from './config';
 
-export interface User {
-  id: string;
+interface User {
   name: string;
   email: string;
-  picture: string;
-  provider: string;
-  _raw: string;
-  _json: any;
+  picture?: string;
 }
 
 interface AuthContextType {
@@ -24,57 +21,104 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const getUserEmail = () => {
-    if (!user) return '';
-    return user.email;
-  };
-
   useEffect(() => {
-    checkAuth();
+    const checkUser = async () => {
+      try {
+        console.log('🔍 AuthContext: Starting user check');
+        console.log('🌐 AuthContext: Using backend URL:', BACKEND_URL);
+        
+        const response = await fetch(`${BACKEND_URL}/auth/current-user`, {
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache'
+          }
+        });
+        
+        console.log('📡 AuthContext: Response status:', response.status);
+        console.log('📡 AuthContext: Response headers:', Object.fromEntries(response.headers.entries()));
+        
+        if (response.ok) {
+          const userData = await response.json();
+          console.log('👤 AuthContext: User data received:', userData);
+          setUser(userData);
+        } else {
+          console.log('❌ AuthContext: No authenticated user found');
+          const errorText = await response.text();
+          console.log('❌ AuthContext: Error details:', errorText);
+          setUser(null);
+        }
+      } catch (error) {
+        console.error('❌ AuthContext: Error checking user status:', error);
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    console.log('🔄 AuthContext: Running initial user check');
+    checkUser();
   }, []);
 
-  const checkAuth = async () => {
+  const login = () => {
+    console.log('🔐 AuthContext: Initiating login process');
+    console.log('🌐 AuthContext: Redirecting to:', `${BACKEND_URL}/auth/google`);
+    // Add a small delay to ensure logs are visible
+    setTimeout(() => {
+      window.location.href = `${BACKEND_URL}/auth/google`;
+    }, 100);
+  };
+
+  const logout = async () => {
     try {
-      const response = await fetch('/auth/current-user', {
+      console.log('🔓 AuthContext: Initiating logout process');
+      const response = await fetch(`${BACKEND_URL}/auth/logout`, {
+        method: 'POST',
         credentials: 'include',
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json'
         }
       });
+      
+      console.log('📡 AuthContext: Logout response status:', response.status);
+      
       if (response.ok) {
-        const userData = await response.json();
-        setUser(userData);
-      } else {
+        console.log('✅ AuthContext: Logout successful');
         setUser(null);
+      } else {
+        console.error('❌ AuthContext: Logout failed');
+        const errorText = await response.text();
+        console.error('❌ AuthContext: Logout error details:', errorText);
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
-      setUser(null);
-    } finally {
-      setLoading(false);
+      console.error('❌ AuthContext: Error during logout:', error);
     }
   };
 
-  const login = () => {
-    window.location.href = '/auth/google';
+  const getUserEmail = () => {
+    return user?.email || '';
   };
 
-  const logout = () => {
-    window.location.href = '/auth/logout';
+  const contextValue = {
+    user,
+    loading,
+    login,
+    logout,
+    getUserEmail
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, getUserEmail }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-export function useAuth() {
+export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-} 
+}; 

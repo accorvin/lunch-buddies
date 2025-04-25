@@ -52,6 +52,7 @@ import {
   HelpIcon,
   GithubIcon
 } from '@patternfly/react-icons';
+import { BACKEND_URL } from './config';
 
 // Define types inline since we're having issues with imports
 interface MatchRound {
@@ -84,8 +85,6 @@ interface Match {
 }
 
 // Constants
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-
 const weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
 const isValidEmail = (email: string) =>
@@ -321,7 +320,7 @@ const StatisticsView: React.FC = () => {
   useEffect(() => {
     const fetchStatistics = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/statistics`, {
+        const response = await fetch(`${BACKEND_URL}/api/statistics`, {
           credentials: 'include',
           headers: {
             'x-user-email': getUserEmail()
@@ -667,7 +666,7 @@ const LunchBuddyApp = () => {
       console.log('Checking admin status for email:', userEmail);
       
       // Check admin status
-      fetch(`${API_BASE_URL}/api/is-admin`, {
+      fetch(`${BACKEND_URL}/api/is-admin`, {
         credentials: 'include',
         headers: {
           'x-user-email': userEmail
@@ -697,7 +696,7 @@ const LunchBuddyApp = () => {
     if (!user) return;
     
     try {
-      const res = await fetch(`${API_BASE_URL}/api/my-registration`, {
+      const res = await fetch(`${BACKEND_URL}/api/my-registration`, {
         credentials: 'include'
       });
       if (res.ok) {
@@ -724,7 +723,7 @@ const LunchBuddyApp = () => {
       const endpoint = isEditing ? "/api/registration" : "/api/register";
       const method = isEditing ? "PUT" : "POST";
       
-      const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+      const res = await fetch(`${BACKEND_URL}${endpoint}`, {
         method,
         headers: { 
           "Content-Type": "application/json",
@@ -770,7 +769,7 @@ const LunchBuddyApp = () => {
         setIsEditing(false);
 
         // Refresh participants list
-        const participantsRes = await fetch(`${API_BASE_URL}/api/participants`, {
+        const participantsRes = await fetch(`${BACKEND_URL}/api/participants`, {
           credentials: 'include'
         });
         if (participantsRes.ok) {
@@ -797,7 +796,7 @@ const LunchBuddyApp = () => {
 
   const handleCancelRegistration = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/registration`, {
+      const res = await fetch(`${BACKEND_URL}/api/registration`, {
         method: "DELETE",
         credentials: 'include'
       });
@@ -813,7 +812,7 @@ const LunchBuddyApp = () => {
         setTouched({ name: false, email: false, days: false });
         
         // Refresh participants list
-        const participantsRes = await fetch(`${API_BASE_URL}/api/participants`, {
+        const participantsRes = await fetch(`${BACKEND_URL}/api/participants`, {
           credentials: 'include'
         });
         if (participantsRes.ok) {
@@ -835,7 +834,7 @@ const LunchBuddyApp = () => {
   const handleMatch = async () => {
     try {
       console.log('Starting match process...');
-      const response = await fetch(`${API_BASE_URL}/api/match`, {
+      const response = await fetch(`${BACKEND_URL}/api/match`, {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -872,7 +871,7 @@ const LunchBuddyApp = () => {
 
   const handleOpenParticipantsModal = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/participants`, {
+      const res = await fetch(`${BACKEND_URL}/api/participants`, {
         credentials: 'include'
       });
       if (res.ok) {
@@ -895,7 +894,7 @@ const LunchBuddyApp = () => {
     try {
       console.log('Sending update request with data:', data);
 
-      const response = await fetch(`${API_BASE_URL}/api/registration`, {
+      const response = await fetch(`${BACKEND_URL}/api/registration`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -924,7 +923,7 @@ const LunchBuddyApp = () => {
       setIsEditing(false);
 
       // Refresh participants list
-      const participantsRes = await fetch(`${API_BASE_URL}/api/participants`, {
+      const participantsRes = await fetch(`${BACKEND_URL}/api/participants`, {
         credentials: 'include'
       });
       if (participantsRes.ok) {
@@ -941,7 +940,7 @@ const LunchBuddyApp = () => {
 
   const handleSaveNew = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/register`, {
+      const response = await fetch(`${BACKEND_URL}/api/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -964,7 +963,7 @@ const LunchBuddyApp = () => {
       setIsEditing(false);
 
       // Refresh participants list
-      const participantsRes = await fetch(`${API_BASE_URL}/api/participants`, {
+      const participantsRes = await fetch(`${BACKEND_URL}/api/participants`, {
         credentials: 'include'
       });
       if (participantsRes.ok) {
@@ -981,7 +980,7 @@ const LunchBuddyApp = () => {
 
   const handleGenerateTestData = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/generate-test-data`, {
+      const response = await fetch(`${BACKEND_URL}/api/generate-test-data`, {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -1058,7 +1057,7 @@ const LunchBuddyApp = () => {
 
   const fetchStatistics = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/statistics`, {
+      const response = await fetch(`${BACKEND_URL}/api/statistics`, {
         headers: {
           "x-user-email": getUserEmail(),
         },
@@ -1079,7 +1078,7 @@ const LunchBuddyApp = () => {
   useEffect(() => {
     const loadParticipants = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/participants`, {
+        const res = await fetch(`${BACKEND_URL}/api/participants`, {
           credentials: 'include'
         });
         if (res.ok) {
@@ -1096,6 +1095,11 @@ const LunchBuddyApp = () => {
       loadParticipants();
     }
   }, [user]);
+
+  const handleGoogleLogin = () => {
+    console.log('Initiating Google login...');
+    login(); // Use the auth context login method
+  };
 
   if (loading) {
     return <div>Loading...</div>;
@@ -1194,7 +1198,7 @@ const LunchBuddyApp = () => {
             </div>
           ) : (
             <div className="pf-v5-c-page__header-tools-item">
-              <PFButton variant="primary" onClick={login}>
+              <PFButton variant="primary" onClick={handleGoogleLogin}>
                 Login with Google
               </PFButton>
             </div>
@@ -1470,7 +1474,7 @@ const LunchBuddyApp = () => {
                       <Text component={TextVariants.p} className="pf-v5-u-mb-lg">
                         Sign in with your Google account to participate in the Lunch Buddy program
                       </Text>
-                      <PFButton variant="primary" onClick={login}>
+                      <PFButton variant="primary" onClick={handleGoogleLogin}>
                         Login with Google
                       </PFButton>
                     </div>
