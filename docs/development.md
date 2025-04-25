@@ -74,6 +74,26 @@ SLACK_BOT_TOKEN=your-slack-bot-token
 JWT_SECRET=your-secure-random-string
 ```
 
+## Multi-Location Support
+
+The Lunch Buddy app supports multiple locations for participant matching. This feature allows:
+
+1. Location Management:
+   - Site leaders can add and manage locations
+   - Each location can have its own set of participants
+   - Statistics are tracked per location
+
+2. Development Considerations:
+   - Test with multiple locations to ensure proper matching
+   - Verify location-based filtering in statistics
+   - Check location selection in registration forms
+
+3. Testing Multi-Location Features:
+   - Add test locations through the admin interface
+   - Register participants at different locations
+   - Verify matching logic respects location preferences
+   - Test location-specific statistics
+
 ## Project Structure
 
 ```

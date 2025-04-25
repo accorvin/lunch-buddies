@@ -91,6 +91,7 @@ This will create two tables in your production DynamoDB:
   - `name` (String)
   - `email` (String)
   - `department` (String)
+  - `location` (String)
   - `preferences` (String, JSON serialized)
   - `createdAt` (String, ISO date)
   - `updatedAt` (String, ISO date)
@@ -100,7 +101,19 @@ This will create two tables in your production DynamoDB:
 - **Primary Key**: `matchId` (String)
 - **Attributes**:
   - `date` (String, ISO date)
+  - `location` (String)
   - `matches` (String, JSON serialized)
+
+### Locations Table
+- **Table Name**: `{prefix}LunchBuddyLocations`
+- **Primary Key**: `locationId` (String)
+- **Attributes**:
+  - `name` (String)
+  - `description` (String)
+  - `siteLeaderEmail` (String)
+  - `createdAt` (String, ISO date)
+  - `updatedAt` (String, ISO date)
+  - `isActive` (Boolean)
 
 ## Environment Variables
 
@@ -117,6 +130,35 @@ DYNAMODB_TABLE_PREFIX=your-prefix
 
 ### Local Development
 For local development, no AWS credentials are needed. The application will automatically use the local DynamoDB instance.
+
+## Multi-Location Setup
+
+### Initial Location Configuration
+1. Create initial locations:
+```bash
+cd backend
+node scripts/create-initial-locations.js
+```
+
+2. Verify location setup:
+```bash
+node scripts/verify-locations.js
+```
+
+### Location Management
+- Locations can be managed through the admin interface
+- Each location must have a designated site leader
+- Location data is used for:
+  - Participant registration
+  - Match generation
+  - Statistics tracking
+
+### Data Migration
+When adding location support to an existing deployment:
+1. Update table schemas
+2. Run migration scripts
+3. Verify data integrity
+4. Update application configuration
 
 ## Troubleshooting
 

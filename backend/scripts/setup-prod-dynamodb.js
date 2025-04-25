@@ -1,5 +1,5 @@
 const { CreateTableCommand } = require('@aws-sdk/client-dynamodb');
-const { dynamoDB, registrationsTable, matchHistoryTable } = require('../dynamodb');
+const { dynamoDB, registrationsTable, matchHistoryTable, locationsTable } = require('../dynamodb');
 
 async function createRegistrationsTable() {
   try {
@@ -53,10 +53,37 @@ async function createMatchHistoryTable() {
   }
 }
 
+async function createLocationsTable() {
+  try {
+    const command = new CreateTableCommand({
+      TableName: locationsTable,
+      KeySchema: [
+        { AttributeName: 'locationId', KeyType: 'HASH' }  // Partition key
+      ],
+      AttributeDefinitions: [
+        { AttributeName: 'locationId', AttributeType: 'S' }
+      ],
+      ProvisionedThroughput: {
+        ReadCapacityUnits: 5,
+        WriteCapacityUnits: 5
+      }
+    });
+    await dynamoDB.send(command);
+    console.log('✅ Locations table created successfully');
+  } catch (error) {
+    if (error.name === 'ResourceInUseException') {
+      console.log('ℹ️ Locations table already exists');
+    } else {
+      console.error('❌ Error creating locations table:', error);
+    }
+  }
+}
+
 async function setupTables() {
   console.log('🚀 Setting up production DynamoDB tables...');
   await createRegistrationsTable();
   await createMatchHistoryTable();
+  await createLocationsTable();
   console.log('✨ DynamoDB setup completed');
 }
 

@@ -1,1 +1,67 @@
+/* Fix for PatternFly Select menu items to ensure text is visible */
+.pf-v5-c-select__menu {
+  background-color: white !important;
+  border: 1px solid #d2d2d2 !important;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.175) !important;
+  z-index: 1000 !important; /* Make sure it's above other elements */
+}
 
+.pf-v5-c-select__menu-item {
+  color: #151515 !important;
+  background-color: white !important;
+}
+
+/* Simple but effective hover styling */
+.pf-v5-c-select__menu-item:hover {
+  background-color: #ededed !important; /* Darker gray background */
+}
+
+.pf-v5-c-select__menu-item:focus {
+  color: #151515 !important;
+  background-color: #ededed !important;
+}
+
+/* Custom class for select options with enhanced hover */
+.custom-select-option {
+  transition: all 0.1s ease-in-out;
+}
+
+.custom-select-option:hover {
+  background-color: #cce2f5 !important;
+  color: #151515 !important;
+  font-weight: 600 !important;
+}
+
+/* Ensure option text is visible */
+.pf-v5-c-select__menu-item-text {
+  color: #151515 !important;
+  font-weight: 500 !important;
+}
+
+/* Make sure the text in SelectOptions is visible even in list mode */
+.pf-v5-c-select__menu-item > span,
+.pf-v5-c-select__menu-item > div,
+.pf-v5-c-select__menu-option-text {
+  color: #151515 !important;
+}
+
+/* Force menu to have a white background with visible text */
+.pf-v5-c-menu, 
+.pf-v5-c-menu__list, 
+.pf-v5-c-menu__list-item {
+  background-color: white !important;
+  color: #151515 !important;
+}
+
+/* Ensure form fields and toggles have visible text too 
+   But exclude the user profile menu toggle */
+.pf-v5-c-form-control, 
+.pf-v5-c-select .pf-v5-c-menu-toggle {
+  color: #151515 !important;
+  background-color: white !important;
+}
+
+/* Reset background for avatar menu toggle */
+.pf-v5-c-page__header-tools .pf-v5-c-menu-toggle {
+  background-color: transparent !important;
+}

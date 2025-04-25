@@ -170,6 +170,38 @@ podman push $(aws sts get-caller-identity --query Account --output text).dkr.ecr
 - `AWS_ACCESS_KEY_ID`: Your AWS access key ID
 - `AWS_SECRET_ACCESS_KEY`: Your AWS secret access key
 
+## Multi-Location Deployment Considerations
+
+### Initial Setup
+1. Before deploying, ensure your DynamoDB tables are configured to handle location data:
+   - The `LunchBuddyRegistrations` table includes location fields
+   - The `LunchBuddyMatchHistory` table supports location-based matching
+
+2. Configure site leaders:
+   - Add site leader emails to the admin configuration
+   - Ensure site leaders have appropriate permissions in the system
+
+### Production Configuration
+1. Location Management:
+   - Each deployment can support multiple locations
+   - Site leaders can manage their respective locations
+   - Statistics and matching are handled per location
+
+2. Monitoring:
+   - Set up CloudWatch metrics to track:
+     - Registrations per location
+     - Match success rates by location
+     - Location-specific usage patterns
+
+3. Backup Strategy:
+   - Ensure DynamoDB backups include location data
+   - Consider location-specific backup schedules if needed
+
+4. Scaling:
+   - Monitor performance across locations
+   - Adjust instance count based on total user distribution
+   - Consider regional deployments for better latency
+
 ## Common Commands
 
 ### Frontend
