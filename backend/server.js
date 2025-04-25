@@ -146,12 +146,18 @@ app.get('/auth/google/callback',
     console.log('✅ Google authentication callback successful');
     console.log('👤 Authenticated user:', req.user);
     
+    const userEmail = req.user.emails?.[0]?.value;
+    const isAdmin = process.env.NODE_ENV === 'development' || 
+                   (process.env.ADMIN_EMAILS && 
+                    process.env.ADMIN_EMAILS.split(',').map(email => email.trim()).includes(userEmail));
+    
     // Create JWT token
     const token = jwt.sign({
       id: req.user.id,
       name: req.user.displayName,
-      email: req.user.emails?.[0]?.value,
-      picture: req.user.photos?.[0]?.value
+      email: userEmail,
+      picture: req.user.photos?.[0]?.value,
+      isAdmin: isAdmin
     }, process.env.JWT_SECRET, { expiresIn: '24h' });
     
     // Redirect to frontend with token
