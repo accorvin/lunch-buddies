@@ -1174,7 +1174,7 @@ const LunchBuddyApp = () => {
                   onSelect={() => setIsUserDropdownOpen(false)}
                   toggle={(toggleRef: React.RefObject<MenuToggleElement>) => (
                     <MenuToggle ref={toggleRef} onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)} isExpanded={isUserDropdownOpen} variant="plain">
-                       <Avatar src={user.picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&size=32`} alt={user.name} size="sm" />
+                       <Avatar src={user.picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&size=32`} alt={user.name} size="md" />
                     </MenuToggle>
                   )}
                   popperProps={{
