@@ -1284,7 +1284,7 @@ const LunchBuddyApp = () => {
     <div className="pf-v5-c-page" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <header className="pf-v5-c-page__header">
         <div className="pf-v5-c-page__header-brand">
-          <div className="pf-v5-c-page__header-brand-toggle">
+          <div className="pf-v5-c-page__header-brand-toggle" style={{ marginRight: '20px' }}>
             <img 
               src="/redhat-logo.png" 
               alt="Red Hat" 
@@ -1596,40 +1596,54 @@ const LunchBuddyApp = () => {
                               <Title headingLevel="h2" size="xl" className="pf-v5-u-mb-lg">
                                 Current Participants
                               </Title>
-                              <Table aria-label="Participants Table" variant={TableVariant.compact}>
-              <Thead>
-                <Tr>
-                  <Th>Name</Th>
-                  <Th>Email</Th>
-                  <Th>Available Days</Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                                  {participants
-                                    .slice((page - 1) * perPage, page * perPage)
-                                    .map((participant, idx) => (
-                                      <Tr key={idx}>
-                    <Td>{participant.name}</Td>
-                    <Td>{participant.email}</Td>
-                                        <Td>{participant.availableDays?.join(", ") || "—"}</Td>
-                  </Tr>
-                ))}
-              </Tbody>
-            </Table>
-                              <div className="pf-v5-u-mt-md">
-                                <Pagination
-                                  itemCount={participants.length}
-                                  perPage={perPage}
-                                  page={page}
-                                  onSetPage={(_evt, newPage) => setPage(newPage)}
-                                  onPerPageSelect={(_evt, newPerPage) => {
-                                    setPerPage(newPerPage);
-                                    setPage(1);
-                                  }}
-                                  variant="bottom"
-                                  isCompact
-                                />
-                              </div>
+                              {participants.length === 0 ? (
+                                <div className="pf-v5-l-flex pf-m-column pf-m-align-items-center pf-m-justify-content-center pf-v5-u-p-lg" style={{ minHeight: '150px' }}>
+                                  <UsersIcon className="pf-v5-u-mb-md pf-v5-u-font-size-3xl" />
+                                  <Title headingLevel="h3" size="lg" className="pf-v5-u-mb-md">
+                                    No Participants Yet
+                                  </Title>
+                                  <Text component={TextVariants.p} className="pf-v5-u-mb-md">
+                                    Be the first to join the Lunch Buddy program! Sign up above to get started.
+                                  </Text>
+                                </div>
+                              ) : (
+                                <>
+                                  <Table aria-label="Participants Table" variant={TableVariant.compact}>
+                                    <Thead>
+                                      <Tr>
+                                        <Th>Name</Th>
+                                        <Th>Email</Th>
+                                        <Th>Available Days</Th>
+                                      </Tr>
+                                    </Thead>
+                                    <Tbody>
+                                      {participants
+                                        .slice((page - 1) * perPage, page * perPage)
+                                        .map((participant, idx) => (
+                                          <Tr key={idx}>
+                                            <Td>{participant.name}</Td>
+                                            <Td>{participant.email}</Td>
+                                            <Td>{participant.availableDays?.join(", ") || "—"}</Td>
+                                          </Tr>
+                                        ))}
+                                    </Tbody>
+                                  </Table>
+                                  <div className="pf-v5-u-mt-md">
+                                    <Pagination
+                                      itemCount={participants.length}
+                                      perPage={perPage}
+                                      page={page}
+                                      onSetPage={(_evt, newPage) => setPage(newPage)}
+                                      onPerPageSelect={(_evt, newPerPage) => {
+                                        setPerPage(newPerPage);
+                                        setPage(1);
+                                      }}
+                                      variant="bottom"
+                                      isCompact
+                                    />
+                                  </div>
+                                </>
+                              )}
                             </CardBody>
                           </PFCard>
                         </div>
