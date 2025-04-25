@@ -5,6 +5,7 @@ const path = require("path");
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const session = require('express-session');
+const cookieParser = require('cookie-parser');
 
 // Required environment variables
 const requiredEnvVars = [
@@ -12,7 +13,8 @@ const requiredEnvVars = [
   'SLACK_ADMIN_EMAIL',
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET',
-  'SESSION_SECRET'
+  'SESSION_SECRET',
+  'BACKEND_URL'
 ];
 
 // Define weekdays array
@@ -51,52 +53,111 @@ const bodyParser = require("body-parser");
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+// Add cookie-parser middleware before session middleware
+app.use(cookieParser());
+
+// CORS configuration - must be before other middleware
+const corsConfig = {
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'Cookie',
+    'x-user-email',
+    'Cache-Control',
+    'Accept',
+    'Origin',
+    'Sec-Fetch-Site',
+    'Sec-Fetch-Mode',
+    'Sec-Fetch-Dest'
+  ],
+  exposedHeaders: ['Set-Cookie']
+};
+
+console.log('⚙️ CORS configuration:', corsConfig);
+app.use(cors(corsConfig));
+
 // Session configuration
-app.use(session({
+const isProduction = process.env.NODE_ENV === 'production';
+console.log('⚙️ Environment:', process.env.NODE_ENV);
+console.log('⚙️ Frontend URL:', process.env.FRONTEND_URL);
+
+const sessionConfig = {
   secret: process.env.SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false,
+  resave: true,
+  saveUninitialized: true,
+  proxy: true, // Trust the reverse proxy
   cookie: { 
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    secure: isProduction, // Must be true in production
+    sameSite: isProduction ? 'none' : 'lax', // Must be 'none' in production with secure:true
     httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    path: '/',
+    domain: isProduction ? '.awsapprunner.com' : undefined // Set domain in production
   },
   name: 'lunchbuddy.sid'
-}));
+};
+
+console.log('⚙️ Session configuration:', {
+  ...sessionConfig,
+  secret: '[HIDDEN]'
+});
+
+if (isProduction) {
+  app.set('trust proxy', 1); // Trust first proxy
+}
+
+app.use(session(sessionConfig));
 
 // Initialize Passport and restore authentication state from session
 app.use(passport.initialize());
 app.use(passport.session());
 
+// Add request logging middleware
+app.use((req, res, next) => {
+  console.log(`\n🌐 ${new Date().toISOString()} - ${req.method} ${req.url}`);
+  console.log('📝 Request Headers:', req.headers);
+  console.log('🍪 Parsed Cookies:', req.cookies);
+  console.log('🔑 Session ID:', req.sessionID);
+  console.log('🔑 Session:', req.session);
+  console.log('🔒 Secure context:', req.secure);
+  console.log('🌍 Protocol:', req.protocol);
+  console.log('🏠 Host:', req.get('host'));
+  next();
+});
+
 // Passport configuration
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: "/auth/google/callback"
+    callbackURL: `${process.env.BACKEND_URL}/auth/google/callback`,
+    proxy: process.env.NODE_ENV === 'production'
   },
   function(accessToken, refreshToken, profile, done) {
-    // Here you would typically save the user to your database
-    // For now, we'll just return the profile
+    console.log('🔐 Google authentication successful for user:', profile.displayName);
+    console.log('📧 User email:', profile.emails?.[0]?.value);
     return done(null, profile);
   }
 ));
 
 passport.serializeUser((user, done) => {
-  done(null, user);
+  console.log('📥 Serializing user:', user.displayName);
+  const userData = {
+    id: user.id,
+    name: user.displayName,
+    email: user.emails?.[0]?.value,
+    picture: user.photos?.[0]?.value
+  };
+  console.log('💾 Serialized user data:', userData);
+  done(null, userData);
 });
 
-passport.deserializeUser((user, done) => {
-  done(null, user);
+passport.deserializeUser((userData, done) => {
+  console.log('📤 Deserializing user:', userData.name);
+  done(null, userData);
 });
-
-// CORS configuration
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-email', 'Cookie']
-}));
 
 app.use(bodyParser.json());
 
@@ -426,8 +487,8 @@ async function performMatching() {
     
     // Send notifications for new matches
     for (const match of newMatches) {
-      const person1 = registrations.find(r => r.userId === match.users[0]);
-      const person2 = registrations.find(r => r.userId === match.users[1]);
+      const person1 = registrations.find(r => r.users[0] === r.users[0]);
+      const person2 = registrations.find(r => r.users[1] === r.users[1]);
       
       if (!person1 || !person2) continue;
       
@@ -601,44 +662,73 @@ app.get("/api/is-admin", (req, res) => {
   res.json({ isAdmin });
 });
 
-// Google OAuth routes
+// Authentication routes
 app.get('/auth/google',
+  (req, res, next) => {
+    console.log('🔑 Received Google auth request');
+    console.log('📝 Auth Headers:', req.headers);
+    next();
+  },
   passport.authenticate('google', { scope: ['profile', 'email'] })
 );
 
 app.get('/auth/google/callback',
+  (req, res, next) => {
+    console.log('🔄 Received Google auth callback');
+    console.log('📝 Callback Headers:', req.headers);
+    console.log('🔑 Session before auth:', req.session);
+    next();
+  },
   passport.authenticate('google', { failureRedirect: '/login' }),
-  function(req, res) {
-    // Set session cookie
-    req.session.user = req.user;
+  (req, res) => {
+    console.log('✅ Google authentication callback successful');
+    console.log('👤 Authenticated user:', req.user);
+    console.log('🔑 Session after auth:', req.session);
+    
     req.session.save((err) => {
       if (err) {
-        console.error('Error saving session:', err);
-        return res.redirect(process.env.FRONTEND_URL || 'http://localhost:3000');
+        console.error('❌ Error saving session:', err);
+      } else {
+        console.log('✅ Session saved successfully');
       }
-      // Successful authentication, redirect to frontend
       res.redirect(process.env.FRONTEND_URL || 'http://localhost:3000');
     });
   }
 );
 
 app.get('/auth/current-user', (req, res) => {
-  if (req.isAuthenticated()) {
-    const picture = req.user.photos?.[0]?.value;
-    res.json({
-      id: req.user.id,
-      email: req.user.emails[0].value,
-      name: req.user.displayName,
-      picture: picture || 'https://www.gravatar.com/avatar/default?s=200&d=mp'
-    });
-  } else {
-    res.status(401).json({ error: 'Not authenticated' });
+  console.log('👥 Current user request received');
+  console.log('🔑 Session:', req.session);
+  console.log('👤 User:', req.user);
+  console.log('🔒 isAuthenticated:', req.isAuthenticated());
+  
+  if (!req.isAuthenticated()) {
+    console.log('❌ User not authenticated');
+    return res.status(401).json({ error: 'Not authenticated' });
   }
+  
+  console.log('✅ Returning user data:', req.user);
+  res.json({
+    id: req.user.id,
+    name: req.user.name,
+    email: req.user.email,
+    picture: req.user.picture
+  });
 });
 
-app.get('/auth/logout', (req, res) => {
-  req.logout(() => {
-    res.redirect(process.env.FRONTEND_URL || 'http://localhost:3000');
+app.post('/auth/logout', (req, res) => {
+  console.log('🚪 Logout request received');
+  console.log('👤 Current user:', req.user);
+  console.log('🔑 Session before logout:', req.session);
+  
+  req.logout((err) => {
+    if (err) {
+      console.error('❌ Error during logout:', err);
+      return res.status(500).json({ error: 'Failed to logout' });
+    }
+    console.log('✅ User logged out successfully');
+    console.log('🔑 Session after logout:', req.session);
+    res.json({ message: 'Logged out successfully' });
   });
 });
 
