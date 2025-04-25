@@ -12,7 +12,8 @@ async function getAllLocations() {
 
 async function saveLocation(locationName) {
   const item = {
-    name: locationName, // Use name as the primary key/identifier
+    locationId: locationName, // Use locationId as the key in production
+    name: locationName,
     createdAt: new Date().toISOString()
   };
   await dynamoDB.send(new PutCommand({
