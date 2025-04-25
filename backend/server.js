@@ -1,12 +1,19 @@
 require('dotenv').config();
-const fs = require("fs").promises;
-const fsSync = require("fs");
 const path = require("path");
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
-const session = require("express-session");
+const express = require("express");
+const bodyParser = require("body-parser");
+const { 
+  saveRegistration, 
+  getRegistrationByUserId, 
+  getAllRegistrations, 
+  deleteRegistration,
+  saveMatchHistory,
+  getMatchHistory
+} = require('./db');
 
 // Required environment variables
 const requiredEnvVars = [
@@ -28,27 +35,6 @@ if (missingEnvVars.length > 0) {
   missingEnvVars.forEach(envVar => console.error(`   - ${envVar}`));
   process.exit(1);
 }
-
-// Data storage configuration
-const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
-const REGISTRATIONS_FILE = 'registrations.json';
-const MATCH_HISTORY_FILE = 'match_history.json';
-const dataPath = path.join(DATA_DIR, REGISTRATIONS_FILE);
-const matchHistoryPath = path.join(DATA_DIR, MATCH_HISTORY_FILE);
-
-// Ensure data directory exists
-try {
-  if (!fsSync.existsSync(DATA_DIR)) {
-    fsSync.mkdirSync(DATA_DIR, { recursive: true });
-    console.log(`✅ Created data directory: ${DATA_DIR}`);
-  }
-} catch (err) {
-  console.error(`❌ Failed to create data directory ${DATA_DIR}:`, err);
-  process.exit(1);
-}
-
-const express = require("express");
-const bodyParser = require("body-parser");
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -210,66 +196,9 @@ async function processWriteQueue() {
   await processWriteQueue();
 }
 
-async function saveRegistration(reg, userId) {
-  return new Promise((resolve, reject) => {
-    const writeOperation = async () => {
-      try {
-        let all = [];
-        try {
-          const raw = await fs.readFile(dataPath, "utf-8");
-          all = JSON.parse(raw);
-          
-          // Validate existing data structure
-          if (!Array.isArray(all)) {
-            console.error("❌ Corrupted data file - resetting to empty array");
-            all = [];
-          }
-        } catch (e) {
-          if (e.code !== 'ENOENT') {
-            console.error("❌ Error reading registrations file:", e);
-          }
-          // File doesn't exist or is corrupted, start with empty array
-        }
-
-        // Find existing registration for this user
-        const existingReg = all.find(r => r.userId === userId);
-        
-        // Create new registration object
-        const registration = {
-          ...reg,
-          userId,
-          id: existingReg?.id || Date.now().toString(), // Preserve existing ID or create new one
-          createdAt: existingReg?.createdAt || new Date().toISOString(), // Preserve creation date
-          updatedAt: new Date().toISOString() // Always update the updatedAt timestamp
-        };
-
-        // Remove any existing registration for this user
-        all = all.filter(r => r.userId !== userId);
-        all.push(registration);
-
-        await fs.writeFile(dataPath, JSON.stringify(all, null, 2));
-        console.log("✅ Registration saved successfully");
-        resolve(registration);
-      } catch (err) {
-        console.error("❌ Failed to save registration:", err);
-        reject(err);
-      }
-    };
-
-    // Add write operation to queue
-    writeQueue.push(writeOperation);
-    
-    if (!isWriting) {
-      isWriting = true;
-      processWriteQueue().catch(reject);
-    }
-  });
-}
-
 async function isDuplicate(email) {
   try {
-    const raw = await fs.readFile(dataPath, "utf-8");
-    const all = JSON.parse(raw);
+    const all = await getAllRegistrations();
     
     // Validate data structure
     if (!Array.isArray(all)) {
@@ -344,37 +273,6 @@ async function sendSlackDM(userId, message) {
   }
 }
 
-async function getMatchHistory() {
-  try {
-    console.log("📖 Reading match history from:", matchHistoryPath);
-    const raw = await fs.readFile(matchHistoryPath, "utf-8");
-    console.log("Raw match history data:", raw);
-    const history = JSON.parse(raw);
-    console.log(`📜 Found ${history.length} match rounds in history`);
-    console.log("Match history data:", JSON.stringify(history, null, 2));
-    return Array.isArray(history) ? history : [];
-  } catch (err) {
-    if (err.code === 'ENOENT') {
-      console.log("⚠️  Match history file not found - starting with empty array");
-      return [];
-    }
-    console.error("❌ Error reading match history:", err);
-    throw err;
-  }
-}
-
-async function saveMatchHistory(matches) {
-  try {
-    console.log("💾 Writing match history to file...");
-    console.log("Match history data:", JSON.stringify(matches, null, 2));
-    await fs.writeFile(matchHistoryPath, JSON.stringify(matches, null, 2));
-    console.log("✅ Match history saved successfully");
-  } catch (err) {
-    console.error("❌ Error saving match history:", err);
-    throw err;
-  }
-}
-
 function haveRecentlyMatched(person1Id, person2Id, matchHistory, rounds = 3) {
   // Get matches from most recent to oldest
   const recentMatches = matchHistory.slice(-rounds);
@@ -446,19 +344,18 @@ async function performMatching() {
     // Read and validate registrations file
     let registrations = [];
     try {
-      const raw = await fs.readFile(dataPath, "utf-8");
-      registrations = JSON.parse(raw);
+      registrations = await getAllRegistrations();
       
       // Validate data structure
       if (!Array.isArray(registrations)) {
         console.error("❌ Invalid registrations data - resetting to empty array");
         registrations = [];
-        await fs.writeFile(dataPath, JSON.stringify(registrations, null, 2));
+        await saveMatchHistory([]);
       }
     } catch (err) {
       if (err.code === 'ENOENT') {
         registrations = [];
-        await fs.writeFile(dataPath, JSON.stringify(registrations, null, 2));
+        await saveMatchHistory([]);
       } else {
         console.error("❌ Error reading registrations:", err);
         throw err;
@@ -479,8 +376,7 @@ async function performMatching() {
       };
       
       // Add to history and save
-      matchHistory.push(newMatchRound);
-      await saveMatchHistory(matchHistory);
+      await saveMatchHistory([...matchHistory, newMatchRound]);
       console.log(`✅ Saved ${newMatches.length} new matches`);
     }
     
@@ -567,12 +463,6 @@ app.post("/api/register", authenticateToken, async (req, res) => {
       req.user.id
     );
 
-    // Ensure the registration has all required fields
-    if (!registration.id || !registration.userId) {
-      console.error("❌ Invalid registration data:", registration);
-      throw new Error("Invalid registration data");
-    }
-
     // Set response headers
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Cache-Control', 'no-cache');
@@ -617,22 +507,7 @@ app.post("/api/register", authenticateToken, async (req, res) => {
 
 app.get("/api/participants", authenticateToken, async (_req, res) => {
   try {
-    let participants = [];
-    try {
-      const raw = await fs.readFile(dataPath, "utf-8");
-      participants = JSON.parse(raw);
-      
-      // Validate data structure
-      if (!Array.isArray(participants)) {
-        console.error("❌ Corrupted data file when reading participants");
-        participants = [];
-      }
-    } catch (err) {
-      if (err.code !== 'ENOENT') {
-        console.error("❌ Error reading participants:", err);
-      }
-      // Return empty array for new file or errors
-    }
+    const participants = await getAllRegistrations();
     res.json(participants);
   } catch (err) {
     console.error("❌ Failed to retrieve participants:", err);
@@ -657,11 +532,9 @@ app.get("/api/is-admin", authenticateToken, (req, res) => {
 app.get("/api/my-registration", authenticateToken, async (req, res) => {
   try {
     console.log("🔍 Fetching registration for user:", req.user.id);
-    const raw = await fs.readFile(dataPath, "utf-8");
-    const all = JSON.parse(raw);
-    const myRegistration = all.find(r => r.userId === req.user.id);
-    console.log("📝 Found registration:", myRegistration);
-    res.json(myRegistration || null);
+    const registration = await getRegistrationByUserId(req.user.id);
+    console.log("📝 Found registration:", registration);
+    res.json(registration);
   } catch (err) {
     console.error("❌ Failed to retrieve registration:", err);
     res.status(500).json({ error: "Failed to retrieve registration" });
@@ -691,20 +564,7 @@ app.put("/api/registration", authenticateToken, async (req, res) => {
 
 app.delete("/api/registration", authenticateToken, async (req, res) => {
   try {
-    let all = [];
-    try {
-      const raw = await fs.readFile(dataPath, "utf-8");
-      all = JSON.parse(raw);
-    } catch (e) {
-      if (e.code !== 'ENOENT') {
-        console.error("❌ Error reading registrations file:", e);
-      }
-    }
-
-    // Remove the user's registration
-    all = all.filter(r => r.userId !== req.user.id);
-    await fs.writeFile(dataPath, JSON.stringify(all, null, 2));
-    
+    await deleteRegistration(req.user.id);
     res.json({ message: "Registration cancelled successfully" });
   } catch (err) {
     console.error("❌ Failed to cancel registration:", err);
@@ -716,8 +576,7 @@ app.delete("/api/registration", authenticateToken, async (req, res) => {
 app.get("/api/statistics", authenticateToken, async (req, res) => {
   try {
     console.log("📊 Fetching statistics for user:", req.user.id);
-    const raw = await fs.readFile(dataPath, "utf-8");
-    const all = JSON.parse(raw);
+    const all = await getAllRegistrations();
     
     // Calculate total registrations
     const totalRegistrations = all.length;
@@ -797,7 +656,7 @@ async function generateTestData() {
     ];
 
     // Save test registrations
-    await fs.writeFile(dataPath, JSON.stringify(testRegistrations, null, 2));
+    await saveMatchHistory(testRegistrations);
     console.log("✅ Test data generated successfully");
     return testRegistrations;
   } catch (err) {
@@ -809,6 +668,12 @@ async function generateTestData() {
 // Add test data generation endpoint
 app.post("/api/generate-test-data", authenticateToken, async (req, res) => {
   try {
+    // Only allow test data generation in development mode
+    if (process.env.NODE_ENV !== 'development') {
+      console.log('❌ Test data generation attempted in production');
+      return res.status(403).json({ error: "Test data generation is only allowed in development mode" });
+    }
+
     const registrations = await generateTestData();
     res.json({ registrations });
   } catch (err) {
@@ -821,15 +686,7 @@ app.post("/api/generate-test-data", authenticateToken, async (req, res) => {
 app.get("/api/match-history", authenticateToken, async (req, res) => {
   try {
     console.log("🔍 Fetching match history for user:", req.user.id);
-    const raw = await fs.readFile(matchHistoryPath, "utf-8");
-    console.log("Raw match history data:", raw);
-    const history = JSON.parse(raw);
-    
-    // Validate data structure
-    if (!Array.isArray(history)) {
-      console.error("❌ Corrupted match history file");
-      return res.status(500).json({ error: "Invalid match history data" });
-    }
+    const history = await getMatchHistory();
     
     // Sort history by date (most recent first)
     const sortedHistory = history.sort((a, b) => 
@@ -839,11 +696,6 @@ app.get("/api/match-history", authenticateToken, async (req, res) => {
     console.log("Sending match history:", JSON.stringify(sortedHistory, null, 2));
     res.json(sortedHistory);
   } catch (err) {
-    if (err.code === 'ENOENT') {
-      // File doesn't exist, return empty array
-      console.log("⚠️  Match history file not found - returning empty array");
-      return res.json([]);
-    }
     console.error("❌ Error reading match history:", err);
     res.status(500).json({ error: "Failed to retrieve match history" });
   }
@@ -853,44 +705,44 @@ app.get("/api/match-history", authenticateToken, async (req, res) => {
 async function initializeDataFiles() {
   try {
     // Initialize registrations file
-    if (!fsSync.existsSync(dataPath)) {
-      await fs.writeFile(dataPath, JSON.stringify([], null, 2));
-      console.log(`✅ Created registrations file: ${dataPath}`);
+    if (!await getAllRegistrations().length) {
+      await saveMatchHistory([]);
+      console.log(`✅ Created registrations file: ${path.join(process.cwd(), 'data', 'registrations.json')}`);
     } else {
       // Verify existing file has valid JSON
       try {
-        const content = await fs.readFile(dataPath, 'utf-8');
-        if (!content.trim()) {
+        const content = await getAllRegistrations();
+        if (!content.length) {
           // File is empty
-          await fs.writeFile(dataPath, JSON.stringify([], null, 2));
+          await saveMatchHistory([]);
           console.log(`⚠️  Empty registrations file - resetting to empty array`);
         } else {
           JSON.parse(content);
         }
       } catch (err) {
         console.log(`⚠️  Invalid JSON in registrations file, resetting to empty array`);
-        await fs.writeFile(dataPath, JSON.stringify([], null, 2));
+        await saveMatchHistory([]);
       }
     }
 
     // Initialize match history file
-    if (!fsSync.existsSync(matchHistoryPath)) {
-      await fs.writeFile(matchHistoryPath, JSON.stringify([], null, 2));
-      console.log(`✅ Created match history file: ${matchHistoryPath}`);
+    if (!await getMatchHistory().length) {
+      await saveMatchHistory([]);
+      console.log(`✅ Created match history file: ${path.join(process.cwd(), 'data', 'match_history.json')}`);
     } else {
       // Verify existing file has valid JSON
       try {
-        const content = await fs.readFile(matchHistoryPath, 'utf-8');
-        if (!content.trim()) {
+        const content = await getMatchHistory();
+        if (!content.length) {
           // File is empty
-          await fs.writeFile(matchHistoryPath, JSON.stringify([], null, 2));
+          await saveMatchHistory([]);
           console.log(`⚠️  Empty match history file - resetting to empty array`);
         } else {
           JSON.parse(content);
         }
       } catch (err) {
         console.log(`⚠️  Invalid JSON in match history file, resetting to empty array`);
-        await fs.writeFile(matchHistoryPath, JSON.stringify([], null, 2));
+        await saveMatchHistory([]);
       }
     }
   } catch (err) {
@@ -903,7 +755,7 @@ async function initializeDataFiles() {
 initializeDataFiles().then(() => {
   app.listen(PORT, () => {
     console.log(`✅ Server running on port ${PORT}`);
-    console.log(`📁 Using data directory: ${DATA_DIR}`);
+    console.log(`📁 Using data directory: ${path.join(process.cwd(), 'data')}`);
   });
 }).catch(err => {
   console.error("❌ Failed to start server:", err);
