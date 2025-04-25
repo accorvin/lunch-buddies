@@ -83,7 +83,6 @@ yarn-error.log*
 .netlify
 
 # Package locks
-package-lock.json
 yarn.lock
 pnpm-lock.yaml
 
