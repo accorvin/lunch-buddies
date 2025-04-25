@@ -7,7 +7,7 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "setup-local-db": "node scripts/setup-local-dynamodb.js",
-    "migrate-data": "node scripts/migrate-data.js"
+    "setup-prod-db": "node scripts/setup-prod-dynamodb.js"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.0.0",

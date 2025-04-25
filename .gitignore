@@ -32,9 +32,6 @@ yarn-error.log*
 # Elastic Beanstalk
 .elasticbeanstalk/
 
-# Documentation
-docs/
-
 # Container
 *.containerfile
 .containerignore
