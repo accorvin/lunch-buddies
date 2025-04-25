@@ -3,11 +3,26 @@ const { dynamoDB, registrationsTable, matchHistoryTable, locationsTable } = requ
 
 // Location operations
 async function getAllLocations() {
-  const result = await dynamoDB.send(new ScanCommand({
-    TableName: locationsTable
-  }));
-  // Assuming locations have a 'name' attribute
-  return result.Items?.map(item => item.name).sort() || [];
+  try {
+    const command = new ScanCommand({
+      TableName: locationsTable
+    });
+    const response = await dynamoDB.send(command);
+    const locations = response.Items || [];
+    // Sort the locations by name and return just the names
+    return locations
+      .map(location => location.name)
+      .sort((a, b) => a.localeCompare(b));
+  } catch (error) {
+    console.error('Error getting locations:', error);
+    console.error('Error details:', {
+      code: error.code,
+      message: error.message,
+      requestId: error.$metadata?.requestId,
+      retryAttempts: error.$metadata?.retryAttempts
+    });
+    throw error;
+  }
 }
 
 async function saveLocation(locationName) {
@@ -38,27 +53,39 @@ async function deleteLocationByName(locationName) {
 
 // Registration operations
 async function saveRegistration(registration, userId) {
-  // Ensure location is included
-  if (!registration.location) {
-    throw new Error('Location is required for registration.');
+  try {
+    // Ensure location is included
+    if (!registration.location) {
+      throw new Error('Location is required for registration.');
+    }
+    const item = {
+      ...registration,
+      userId, // Partition Key
+      // id is no longer needed if userId is the key
+      createdAt: registration.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    // Remove potentially problematic id field if it exists from old structure
+    delete item.id; 
+
+    const command = new PutCommand({
+      TableName: registrationsTable,
+      Item: item
+    });
+    await dynamoDB.send(command);
+
+    return item;
+  } catch (error) {
+    console.error('Error saving registration:', error);
+    console.error('Error details:', {
+      code: error.code,
+      message: error.message,
+      requestId: error.$metadata?.requestId,
+      retryAttempts: error.$metadata?.retryAttempts
+    });
+    throw error;
   }
-  const item = {
-    ...registration,
-    userId, // Partition Key
-    // id is no longer needed if userId is the key
-    createdAt: registration.createdAt || new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  };
-
-  // Remove potentially problematic id field if it exists from old structure
-  delete item.id; 
-
-  await dynamoDB.send(new PutCommand({
-    TableName: registrationsTable,
-    Item: item
-  }));
-
-  return item;
 }
 
 async function getRegistrationByUserId(userId) {
@@ -89,10 +116,22 @@ async function getAllRegistrations(location = null) {
 }
 
 async function deleteRegistration(userId) {
-  await dynamoDB.send(new DeleteCommand({
-    TableName: registrationsTable,
-    Key: { userId }
-  }));
+  try {
+    const command = new DeleteCommand({
+      TableName: registrationsTable,
+      Key: { userId }
+    });
+    await dynamoDB.send(command);
+  } catch (error) {
+    console.error('Error deleting registration:', error);
+    console.error('Error details:', {
+      code: error.code,
+      message: error.message,
+      requestId: error.$metadata?.requestId,
+      retryAttempts: error.$metadata?.retryAttempts
+    });
+    throw error;
+  }
 }
 
 // Match history operations

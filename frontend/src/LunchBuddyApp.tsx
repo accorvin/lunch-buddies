@@ -97,7 +97,7 @@ interface Registration {
   name: string;
   email: string;
   availableDays: string[];
-  location: string; // Added location
+  location: string; // Changed to string to match the actual data
   createdAt?: string; // Optional, added by backend
   updatedAt?: string; // Optional, added by backend
 }
@@ -108,7 +108,7 @@ interface Participant {
   name: string;
   email: string;
   availableDays: string[];
-  location: string; // Added location
+  location: string; // Changed to string to match the actual data
 }
 
 // Match now includes location
@@ -143,6 +143,8 @@ interface Toast {
   variant: "success" | "danger";
 }
 
+// Add this after the other interfaces at the top of the file
+type Location = string;
 
 // --- Constants ---
 const weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
@@ -212,12 +214,14 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
   };
 
   const handleLocationSelect = (_event: React.MouseEvent | React.ChangeEvent | undefined, selection: string | number | undefined) => {
-    // Ensure selection is a string or handle number if needed
-    const loc = typeof selection === 'string' ? selection : 
-                typeof selection === 'number' ? String(selection) : undefined;
-    setSelectedLocation(loc);
+    if (typeof selection === 'string') {
+        setSelectedLocation(selection);
+    } else if (typeof selection === 'number') {
+        setSelectedLocation(String(selection));
+    } else {
+        setSelectedLocation('__ALL__');
+    }
     setIsLocationOpen(false);
-    setTouched(prev => ({ ...prev, location: true }));
   };
 
   const handleSubmit = async () => {
@@ -344,13 +348,12 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
 
 // --- Admin Components ---
 // Location Management Component
-const LocationManager: React.FC<{ 
-    locations: string[]; 
-    onAdd: (name: string) => Promise<void>; 
-    onDelete: (name: string) => Promise<void>;
-    isLoading: boolean;
-}> = ({ locations, onAdd, onDelete, isLoading }) => {
-    const [newLocationName, setNewLocationName] = useState('');
+const LocationManager: React.FC<{
+    locations: Location[];
+    onLocationsChange: (locations: Location[]) => void;
+    fetchWithAuthFn: (url: string, options?: RequestInit) => Promise<Response>;
+}> = ({ locations, onLocationsChange, fetchWithAuthFn }) => {
+    const [newLocationName, setNewLocationName] = useState<string>('');
     const [isAdding, setIsAdding] = useState(false);
     const [deletingLocation, setDeletingLocation] = useState<string | null>(null);
 
@@ -358,7 +361,11 @@ const LocationManager: React.FC<{
         if (!newLocationName.trim()) return;
         setIsAdding(true);
         try {
-            await onAdd(newLocationName.trim());
+            await fetchWithAuthFn(`${BACKEND_URL}/api/locations`, {
+                method: 'POST',
+                body: JSON.stringify({ name: newLocationName.trim() })
+            });
+            onLocationsChange([...locations, newLocationName.trim()]);
             setNewLocationName(''); // Clear input on success
         } finally {
             setIsAdding(false);
@@ -368,7 +375,10 @@ const LocationManager: React.FC<{
     const handleDelete = async (name: string) => {
         setDeletingLocation(name);
         try {
-            await onDelete(name);
+            await fetchWithAuthFn(`${BACKEND_URL}/api/locations/${encodeURIComponent(name)}`, {
+                method: 'DELETE'
+            });
+            onLocationsChange(locations.filter(l => l !== name));
         } finally {
             setDeletingLocation(null);
         }
@@ -376,60 +386,45 @@ const LocationManager: React.FC<{
 
     return (
         <PFCard isFlat>
-            <CardTitle>Manage Locations</CardTitle>
+            <CardTitle>Location Management</CardTitle>
             <CardBody>
-                <Form onSubmit={(e) => { e.preventDefault(); handleAdd(); }}>
-                    <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsLg' }}>
-                        <FlexItem>
-                             <InputGroup>
-                                <InputGroupItem isFill>
-                                    <TextInput
-                                        name="newLocationName"
-                                        id="newLocationName"
-                                        type="text"
-                                        placeholder="Add new location name"
-                                        aria-label="New location name"
-                                        value={newLocationName}
-                                        onChange={(_evt, val) => setNewLocationName(val)}
-                                        isDisabled={isAdding || isLoading}
-                                    />
-                                </InputGroupItem>
-                                <InputGroupItem>
-                                     <PFButton 
-                                         variant="control" 
-                                         onClick={handleAdd} 
-                                         isDisabled={!newLocationName.trim() || isAdding || isLoading}
-                                         isLoading={isAdding}
-                                         aria-label="Add location"
-                                     >
-                                         <PlusCircleIcon />
-                                     </PFButton>
-                                </InputGroupItem>
-                            </InputGroup>
+                <div className="pf-v5-u-mt-md">
+                    <Flex>
+                        <FlexItem grow={{ default: "grow" }}>
+                            <TextInput
+                                value={newLocationName}
+                                onChange={(_event, value) => setNewLocationName(value)}
+                                placeholder="Enter new location name"
+                                isDisabled={isAdding}
+                            />
                         </FlexItem>
                         <FlexItem>
-                             {isLoading ? <Spinner size="md" /> : (
-                                <List isPlain style={{ padding: 0 }}>
-                                    {locations.length === 0 && <Text component={TextVariants.small}>No locations configured yet.</Text>}
-                                    {locations.map(loc => (
-                                        <ListItem key={loc} className="pf-v5-u-display-flex pf-v5-u-align-items-center pf-v5-u-justify-content-space-between pf-v5-u-pt-sm pf-v5-u-pb-sm pf-v5-u-border-bottom-1px">
-                                            <Badge isRead>{loc}</Badge>
-                                            <PFButton 
-                                                variant="plain" 
-                                                aria-label={`Delete ${loc}`} 
-                                                onClick={() => handleDelete(loc)}
-                                                isDisabled={deletingLocation === loc}
-                                                style={{ color: 'var(--pf-v5-global--danger-color--100)' }}
-                                            >
-                                               {deletingLocation === loc ? <Spinner size="sm" /> : <TrashIcon />}
-                                            </PFButton>
-                                        </ListItem>
-                                    ))}
-                                </List>
-                            )}
+                            <PFButton
+                                variant="primary"
+                                onClick={handleAdd}
+                                isDisabled={!newLocationName.trim() || isAdding}
+                                aria-label="Add location"
+                            >
+                                {isAdding ? <Spinner size="sm" /> : <PlusCircleIcon />}
+                            </PFButton>
                         </FlexItem>
                     </Flex>
-                </Form>
+                </div>
+                <div className="pf-v5-u-mt-md">
+                    {locations.map(location => (
+                        <div key={location} className="pf-v5-u-mb-sm pf-v5-u-display-flex pf-v5-u-justify-content-space-between pf-v5-u-align-items-center">
+                            <span>{location}</span>
+                            <PFButton
+                                variant="plain"
+                                onClick={() => handleDelete(location)}
+                                isDisabled={deletingLocation === location}
+                                aria-label={`Delete ${location}`}
+                            >
+                                {deletingLocation === location ? <Spinner size="sm" /> : <TrashIcon />}
+                            </PFButton>
+                        </div>
+                    ))}
+                </div>
             </CardBody>
         </PFCard>
     );
@@ -438,10 +433,10 @@ const LocationManager: React.FC<{
 
 // Updated Statistics View for Location Filtering
 const StatisticsView: React.FC<{ 
-    locations: string[]; 
+    locations: Location[]; 
     selectedLocationFilter: string | null;
     onLocationFilterChange: (location: string | null) => void; 
-    fetchWithAuthFn: (url: string, options?: RequestInit) => Promise<any>; // Pass fetch function
+    fetchWithAuthFn: (url: string, options?: RequestInit) => Promise<any>;
 }> = ({ locations, selectedLocationFilter, onLocationFilterChange, fetchWithAuthFn }) => {
   const { user } = useAuth(); // Use user to know when to fetch
   const [stats, setStats] = useState<Statistics | null>(null);
@@ -503,12 +498,14 @@ const StatisticsView: React.FC<{
                                         isDisabled={loading || locations.length === 0}
                                     >
                                         <MapMarkerAltIcon className="pf-v5-u-mr-xs" />
-                                        {selectedLocationFilter ? locations.find(l => l === selectedLocationFilter) || selectedLocationFilter : "Global Statistics"}
+                                        {selectedLocationFilter ? selectedLocationFilter : "Global Statistics"}
                                     </MenuToggle>
                                 )}
                             >
                                 <SelectOption key="global" value="__GLOBAL__" style={{ color: 'black' }} className="custom-select-option">Global Statistics</SelectOption>
-                                {locations.map(loc => <SelectOption key={loc} value={loc} style={{ color: 'black' }} className="custom-select-option">{loc}</SelectOption>)}
+                                {locations.map(loc => (
+                                    <SelectOption key={`location-${loc}`} value={loc} style={{ color: 'black' }} className="custom-select-option">{loc}</SelectOption>
+                                ))}
                             </Select>
                         </ToolbarItem>
                     </ToolbarGroup>
@@ -707,7 +704,7 @@ const LunchBuddyApp = () => {
   // Data State
   const [myRegistration, setMyRegistration] = useState<Registration | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
-  const [locations, setLocations] = useState<string[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
   const [matchHistory, setMatchHistory] = useState<MatchRound[]>([]);
   const [allRegistrationsForHistory, setAllRegistrationsForHistory] = useState<Registration[]>([]); // Needed to display names in history
 
@@ -1130,6 +1127,32 @@ const LunchBuddyApp = () => {
     }
   };
 
+  const handleAdminModalOpen = async () => {
+    setIsAdminModalOpen(true);
+    setIsDataLoading(true);
+    try {
+      // Refresh locations and other admin data
+      const [locationsData, adminData] = await Promise.all([
+        fetchWithAuth(`${BACKEND_URL}/api/locations`).catch(err => {
+          console.warn('Could not load locations:', err.message);
+          return [];
+        }),
+        fetchWithAuth(`${BACKEND_URL}/api/is-admin`).catch(err => {
+          console.error('Failed to check admin status:', err.message);
+          return { isAdmin: false };
+        })
+      ]);
+      
+      setLocations(locationsData || []);
+      setIsAdmin(adminData?.isAdmin || false);
+    } catch (err) {
+      console.error("Failed to load admin data:", err);
+      showToast(err instanceof Error ? err.message : 'Failed to load admin data', 'danger');
+    } finally {
+      setIsDataLoading(false);
+    }
+  };
+
   // --- Render Logic ---
 
   if (authLoading || (isDataLoading && !user)) { // Show spinner only during auth load or initial data load without user
@@ -1181,7 +1204,13 @@ const LunchBuddyApp = () => {
                       triggerAction="hover"
                       position="bottom"
                     >
-                       <PFButton variant="plain" aria-label="Admin settings" onClick={() => setIsAdminModalOpen(true)} icon={<CogIcon />} isDisabled={isSubmitting} />
+                       <PFButton 
+                         variant="plain" 
+                         aria-label="Admin settings" 
+                         onClick={handleAdminModalOpen} 
+                         icon={<CogIcon />} 
+                         isDisabled={isSubmitting} 
+                       />
                    </Popover>
                 </FlexItem>
               )}
@@ -1302,7 +1331,7 @@ const LunchBuddyApp = () => {
                                                     onSelect={(_e, selection) => {
                                                         const loc = selection === '__ALL__' ? null : String(selection);
                                                         setParticipantLocationFilter(loc);
-                                                        setIsParticipantFilterOpen(false); // Close on select
+                                                        setIsParticipantFilterOpen(false);
                                                     }}
                                                     toggle={(toggleRef: React.Ref<MenuToggleElement>) => (
                                                         <MenuToggle
@@ -1312,12 +1341,21 @@ const LunchBuddyApp = () => {
                                                             isDisabled={locations.length === 0}
                                                         >
                                                             <MapMarkerAltIcon className="pf-v5-u-mr-xs" />
-                                                            {participantLocationFilter ? locations.find(l => l === participantLocationFilter) || participantLocationFilter : "All Locations"}
+                                                            {participantLocationFilter ? participantLocationFilter : "All Locations"}
                                                         </MenuToggle>
                                                     )}
                                                 >
                                                     <SelectOption key="all" value="__ALL__" style={{ color: 'black' }} className="custom-select-option">All Locations</SelectOption>
-                                                    {locations.map(loc => <SelectOption key={loc} value={loc} style={{ color: 'black' }} className="custom-select-option">{loc}</SelectOption>)}
+                                                    {locations.map(loc => (
+                                                        <SelectOption 
+                                                            key={loc} 
+                                                            value={loc} 
+                                                            style={{ color: 'black' }} 
+                                                            className="custom-select-option"
+                                                        >
+                                                            {loc}
+                                                        </SelectOption>
+                                                    ))}
                                                 </Select>
                                             </FlexItem>
                                             {participantLocationFilter && (
@@ -1429,9 +1467,8 @@ const LunchBuddyApp = () => {
                    <GridItem span={12} md={6}>
                         <LocationManager 
                             locations={locations} 
-                            onAdd={handleAdminAddLocation} 
-                            onDelete={handleAdminDeleteLocation} 
-                            isLoading={isSubmitting} // Use submitting state for loading indicator here
+                            onLocationsChange={setLocations}
+                            fetchWithAuthFn={fetchWithAuth}
                         />
                    </GridItem>
                     <GridItem span={12} md={6}>
@@ -1500,12 +1537,14 @@ const LunchBuddyApp = () => {
                                                     isDisabled={locations.length === 0}
                                                 >
                                                     <MapMarkerAltIcon className="pf-v5-u-mr-xs" />
-                                                    {historyLocationFilter ? locations.find(l => l === historyLocationFilter) || historyLocationFilter : "All Locations"}
+                                                    {historyLocationFilter ? historyLocationFilter : "All Locations"}
                                                 </MenuToggle>
                                             )}
                                         >
                                             <SelectOption key="all" value="__ALL__" style={{ color: 'black' }} className="custom-select-option">All Locations</SelectOption>
-                                            {locations.map(loc => <SelectOption key={loc} value={loc} style={{ color: 'black' }} className="custom-select-option">{loc}</SelectOption>)}
+                                            {locations.map(loc => (
+                                                <SelectOption key={loc} value={loc} style={{ color: 'black' }} className="custom-select-option">{loc}</SelectOption>
+                                            ))}
                                         </Select>
                                     </FlexItem>
                                      {historyLocationFilter && (

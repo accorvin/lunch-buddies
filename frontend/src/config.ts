@@ -1,6 +1,13 @@
-// Backend API URL - defaults to localhost in development
-// Can be overridden with VITE_BACKEND_URL environment variable
-export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080';
+// Handle both Vite and Jest environments
+const getEnvVar = (key: string, defaultValue: string): string => {
+  if (import.meta?.env) {
+    return import.meta.env[key] || defaultValue;
+  }
+  return defaultValue;
+};
+
+export const BACKEND_URL = getEnvVar('VITE_BACKEND_URL', 'http://localhost:8080');
+export const GOOGLE_CLIENT_ID = getEnvVar('VITE_GOOGLE_CLIENT_ID', 'test-client-id');
 
 // Frontend URL - used for CORS configuration
 export const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL || 'http://localhost:3000';

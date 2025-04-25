@@ -38,6 +38,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+
     const checkUser = async () => {
       try {
         console.log('🔍 AuthContext: Starting user check');
@@ -46,8 +48,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const token = getAuthToken();
         if (!token) {
           console.log('❌ AuthContext: No token found');
-          setUser(null);
-          setLoading(false);
+          if (mounted) {
+            setUser(null);
+            setLoading(false);
+          }
           return;
         }
 
@@ -67,30 +71,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const userData = JSON.parse(responseText);
             console.log('👤 AuthContext: User data received:', userData);
             if (userData.id && userData.name && userData.email) {
-              setUser(userData);
+              if (mounted) {
+                setUser(userData);
+              }
             } else {
               console.error('❌ AuthContext: Invalid user data format:', userData);
-              setUser(null);
+              if (mounted) {
+                setUser(null);
+              }
             }
           } catch (parseError) {
             console.error('❌ AuthContext: Error parsing user data:', parseError);
-            setUser(null);
+            if (mounted) {
+              setUser(null);
+            }
           }
         } else {
           console.log('❌ AuthContext: No authenticated user found');
           console.log('❌ AuthContext: Error details:', responseText);
-          setUser(null);
+          if (mounted) {
+            setUser(null);
+          }
         }
       } catch (error) {
         console.error('❌ AuthContext: Error checking user status:', error);
-        setUser(null);
+        if (mounted) {
+          setUser(null);
+        }
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
     console.log('🔄 AuthContext: Running initial user check');
     checkUser();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const login = () => {
@@ -114,9 +134,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return user?.email || '';
   };
 
+  const value: AuthContextType = {
+    user,
+    loading,
+    login,
+    logout,
+    getUserEmail
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, getUserEmail }}>
-      {children}
+    <AuthContext.Provider value={value}>
+      {loading ? (
+        <div data-testid="loading">Loading...</div>
+      ) : (
+        children
+      )}
     </AuthContext.Provider>
   );
 };
