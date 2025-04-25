@@ -66,31 +66,13 @@ jest.mock('../../src/config', () => ({
   GOOGLE_CLIENT_ID: 'test-client-id'
 }));
 
-// Mock the getAuthToken function
-jest.mock('../../src/auth', () => {
-  const originalModule = jest.requireActual('../../src/auth');
+// Mock the getAuthToken function in AuthContext
+jest.mock('../../src/AuthContext', () => {
+  const originalModule = jest.requireActual('../../src/AuthContext');
   return {
     ...originalModule,
     getAuthToken: jest.fn().mockImplementation(() => {
-      return localStorage.getItem('auth_token');
-    }),
-    loginWithGoogle: jest.fn().mockImplementation(() => {
-      return Promise.resolve();
-    }),
-    logout: jest.fn().mockImplementation(() => {
-      localStorage.removeItem('auth_token');
-      return Promise.resolve();
-    }),
-    verifyToken: jest.fn().mockImplementation((token) => {
-      if (token === 'valid-token') {
-        return Promise.resolve({
-          id: 'test-user-id',
-          name: 'Test User',
-          email: 'test@example.com',
-          picture: 'https://example.com/avatar.jpg'
-        });
-      }
-      return Promise.reject(new Error('Invalid token'));
+      return mockLocalStorage.getItem('auth_token');
     })
   };
 });
@@ -143,7 +125,6 @@ describe('AuthContext', () => {
   test('authenticates user with valid token', async () => {
     // Set a valid token in localStorage
     mockLocalStorage.setItem('auth_token', 'valid-token');
-    console.log('Token set in localStorage:', mockLocalStorage.getItem('auth_token'));
 
     // Mock the fetch response for /auth/current-user
     mockFetch.mockImplementationOnce(() => 
@@ -180,7 +161,6 @@ describe('AuthContext', () => {
   test('logs out the user when logout is clicked', async () => {
     // Set a valid token in localStorage
     mockLocalStorage.setItem('auth_token', 'valid-token');
-    console.log('Token set in localStorage:', mockLocalStorage.getItem('auth_token'));
 
     // Mock the fetch response for /auth/current-user
     mockFetch.mockImplementationOnce(() => 
