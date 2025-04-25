@@ -6,6 +6,7 @@ const defaultOptions: RequestInit = {
   headers: {
     'Content-Type': 'application/json',
   },
+  mode: 'cors', // Explicitly set CORS mode
 };
 
 // Helper function to make API requests
@@ -33,6 +34,7 @@ export async function apiRequest(
       console.log(`🌐 API Request: ${options.method || 'GET'} ${url}`);
       console.log('Options:', fetchOptions);
       console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
     }
 
     if (!response.ok) {

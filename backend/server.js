@@ -95,7 +95,8 @@ const sessionConfig = {
     httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
     path: '/',
-    domain: isProduction ? '.awsapprunner.com' : undefined // Set domain in production
+    // Remove domain setting to allow cross-domain cookies
+    domain: undefined
   },
   name: 'lunchbuddy.sid'
 };
