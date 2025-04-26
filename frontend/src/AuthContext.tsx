@@ -75,12 +75,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         
         console.log('📡 AuthContext: Response status:', response.status);
-        const responseText = await response.text();
-        console.log('📡 AuthContext: Raw response:', responseText);
-
+        
         if (response.ok) {
           try {
-            const userData = JSON.parse(responseText);
+            const userData = await response.json();
             console.log('👤 AuthContext: User data received:', userData);
             if (userData.id && userData.name && userData.email) {
               if (mounted) {
@@ -102,7 +100,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
         } else {
-          console.error('❌ AuthContext: Failed to get user data:', response.status, responseText);
+          console.error('❌ AuthContext: Failed to get user data:', response.status);
           if (mounted) {
             setUser(null);
             setLoading(false);
