@@ -1615,36 +1615,40 @@ const LunchBuddyApp = () => {
       </Modal>
 
       {/* Feedback Button */}
-      <div style={{
-        position: 'fixed',
-        bottom: '2rem',
-        right: '2rem',
-        zIndex: 2000
-      }}>
-        <PFButton
-          variant="primary"
-          onClick={() => setIsFeedbackModalOpen(true)}
-          icon={<CommentIcon />}
-          style={{ 
-            borderRadius: '50%',
-            width: '50px',
-            height: '50px',
-            boxShadow: '0 4px 8px rgba(0, 0, 0, 0.3)',
-            padding: '0',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center'
-          }}
-          aria-label="Provide feedback"
-        />
-      </div>
+      {user && (
+        <div style={{
+          position: 'fixed',
+          bottom: '2rem',
+          right: '2rem',
+          zIndex: 2000
+        }}>
+          <PFButton
+            variant="primary"
+            onClick={() => setIsFeedbackModalOpen(true)}
+            icon={<CommentIcon />}
+            style={{ 
+              borderRadius: '50%',
+              width: '50px',
+              height: '50px',
+              boxShadow: '0 4px 8px rgba(0, 0, 0, 0.3)',
+              padding: '0',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center'
+            }}
+            aria-label="Provide feedback"
+          />
+        </div>
+      )}
 
       {/* Feedback Form Modal */}
-      <FeedbackForm
-        isOpen={isFeedbackModalOpen}
-        onClose={() => setIsFeedbackModalOpen(false)}
-        onSubmit={handleSubmitFeedback}
-      />
+      {user && (
+        <FeedbackForm
+          isOpen={isFeedbackModalOpen}
+          onClose={() => setIsFeedbackModalOpen(false)}
+          onSubmit={handleSubmitFeedback}
+        />
+      )}
 
     </div>
   );
