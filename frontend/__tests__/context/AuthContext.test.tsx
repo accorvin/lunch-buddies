@@ -135,7 +135,8 @@ describe('AuthContext', () => {
           id: 'test-user-id',
           name: 'Test User',
           email: 'test@example.com',
-          picture: 'https://example.com/avatar.jpg'
+          picture: 'https://example.com/avatar.jpg',
+          isAdmin: false
         }))
       })
     );
@@ -171,7 +172,8 @@ describe('AuthContext', () => {
           id: 'test-user-id',
           name: 'Test User',
           email: 'test@example.com',
-          picture: 'https://example.com/avatar.jpg'
+          picture: 'https://example.com/avatar.jpg',
+          isAdmin: false
         }))
       })
     );

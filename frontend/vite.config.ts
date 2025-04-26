@@ -42,7 +42,23 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
           ws: true,
-          logLevel: 'debug'
+          logLevel: 'debug',
+          configure: (proxy, _options) => {
+            proxy.on('proxyRes', (proxyRes, req, _res) => {
+              // Log the response headers
+              console.log('Proxy Response Headers:', proxyRes.headers);
+              
+              // If this is a redirect response
+              if (proxyRes.statusCode === 302 || proxyRes.statusCode === 301) {
+                const location = proxyRes.headers.location;
+                if (location) {
+                  // Ensure the redirect URL includes the token
+                  console.log('Redirect Location:', location);
+                  proxyRes.headers.location = location;
+                }
+              }
+            });
+          }
         }
       }
     }

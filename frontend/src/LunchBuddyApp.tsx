@@ -778,11 +778,11 @@ const LunchBuddyApp = () => {
             errorData = { error: `Request failed: ${response.statusText} (${response.status})` };
         }
         // Handle specific auth errors
-        if (response.status === 401 || response.status === 403) {
-            logout(); // Force logout on auth errors
+        if (response.status === 401) {
+            logout(); // Force logout only on 401 (unauthorized)
             throw new Error(errorData.error || 'Authentication failed. Please log in again.');
         }
-        console.error("API Error Details:", errorData);
+        // For 403 (forbidden), just throw the error without logging out
         throw new Error(errorData.error || errorData.message || `Request failed: ${response.statusText} (${response.status})`);
     }
     
@@ -829,6 +829,11 @@ const LunchBuddyApp = () => {
                   return []; // Default to empty array
               }),
               fetchWithAuth(`${BACKEND_URL}/api/is-admin`).catch(err => {
+                  // If we get a 403, it means the user is not an admin
+                  if (err.message.includes('403')) {
+                      console.log('User is not an admin');
+                      return { isAdmin: false };
+                  }
                   console.error('Failed to check admin status:', err.message);
                   return { isAdmin: false }; // Default to non-admin on error
               })

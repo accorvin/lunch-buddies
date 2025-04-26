@@ -23,15 +23,24 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 function getAuthToken(): string | null {
   // Check URL for token (from OAuth redirect)
   const urlParams = new URLSearchParams(window.location.search);
+  console.log('🔍 AuthContext: Current URL search params:', window.location.search);
+  console.log('🔍 AuthContext: All URL params:', Object.fromEntries(urlParams.entries()));
+  
   const token = urlParams.get('token');
+  console.log('🔑 AuthContext: Token from URL:', token);
+  
   if (token) {
+    console.log('💾 AuthContext: Storing token in localStorage');
     localStorage.setItem('auth_token', token);
     // Remove token from URL
     window.history.replaceState({}, document.title, window.location.pathname);
     return token;
   }
+  
   // Check localStorage
-  return localStorage.getItem('auth_token');
+  const storedToken = localStorage.getItem('auth_token');
+  console.log('🔑 AuthContext: Token from localStorage:', storedToken);
+  return storedToken;
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -47,6 +56,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log('🌐 AuthContext: Using backend URL:', BACKEND_URL);
         
         const token = getAuthToken();
+        console.log('🔑 AuthContext: Token found:', !!token);
+        
         if (!token) {
           console.log('❌ AuthContext: No token found');
           if (mounted) {
@@ -74,24 +85,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (userData.id && userData.name && userData.email) {
               if (mounted) {
                 setUser(userData);
+                setLoading(false);
               }
             } else {
               console.error('❌ AuthContext: Invalid user data format:', userData);
               if (mounted) {
                 setUser(null);
+                setLoading(false);
               }
             }
           } catch (parseError) {
             console.error('❌ AuthContext: Error parsing user data:', parseError);
             if (mounted) {
               setUser(null);
+              setLoading(false);
             }
           }
         } else {
-          console.log('❌ AuthContext: No authenticated user found');
-          console.log('❌ AuthContext: Error details:', responseText);
+          console.error('❌ AuthContext: Failed to get user data:', response.status, responseText);
           if (mounted) {
             setUser(null);
+            setLoading(false);
           }
         }
       } catch (error) {

@@ -46,8 +46,23 @@ const PORT = process.env.PORT || 8080;
 app.use(passport.initialize());
 
 // CORS configuration
+const allowedOrigins = [
+  process.env.FRONTEND_URL || 'http://localhost:5173',
+  'https://main.d3jm55ngs3zhck.amplifyapp.com'
+];
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      console.error('❌ CORS error:', msg, 'Origin:', origin);
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-user-email', 'Accept'],
@@ -95,13 +110,10 @@ const isAdmin = (req, res, next) => {
       return res.status(401).json({ error: 'User email not found in token' });
   }
   
-  // Allow admin access in development mode regardless of email
-  if (process.env.NODE_ENV === 'development') {
-      console.log('Development mode: Granting admin access to', userEmail);
-      return next();
-  }
-
-  if (adminEmails.includes(userEmail)) {
+  // Check if user is admin based on token or environment settings
+  if (req.user.isAdmin || 
+      (process.env.NODE_ENV === 'development' && process.env.DEFAULT_ADMIN_IN_DEV === 'true') ||
+      adminEmails.includes(userEmail)) {
       next();
   } else {
       console.warn(`🚫 Admin access denied for user: ${userEmail}`);
@@ -137,7 +149,12 @@ passport.deserializeUser((id, done) => {
 
 // Google OAuth routes
 app.get('/auth/google',
-  passport.authenticate('google', { scope: ['profile', 'email'] })
+  (req, res, next) => {
+    console.log('🔐 Initiating Google OAuth flow');
+    console.log('🌐 Backend URL:', process.env.BACKEND_URL);
+    console.log('🔑 Google Client ID:', process.env.GOOGLE_CLIENT_ID);
+    passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
+  }
 );
 
 app.get('/auth/google/callback',
@@ -147,9 +164,17 @@ app.get('/auth/google/callback',
     console.log('👤 Authenticated user:', req.user);
     
     const userEmail = req.user.emails?.[0]?.value;
-    const isAdmin = process.env.NODE_ENV === 'development' || 
+    console.log('📧 User email:', userEmail);
+    
+    const isAdmin = (process.env.NODE_ENV === 'development' && process.env.DEFAULT_ADMIN_IN_DEV === 'true') || 
                    (process.env.ADMIN_EMAILS && 
                     process.env.ADMIN_EMAILS.split(',').map(email => email.trim()).includes(userEmail));
+    console.log('👑 Is admin:', isAdmin);
+    console.log('🔧 Environment:', {
+      NODE_ENV: process.env.NODE_ENV,
+      DEFAULT_ADMIN_IN_DEV: process.env.DEFAULT_ADMIN_IN_DEV,
+      ADMIN_EMAILS: process.env.ADMIN_EMAILS
+    });
     
     // Create JWT token
     const token = jwt.sign({
@@ -157,16 +182,21 @@ app.get('/auth/google/callback',
       name: req.user.displayName,
       email: userEmail,
       picture: req.user.photos?.[0]?.value,
-      isAdmin: isAdmin
+      isAdmin: isAdmin || false // Ensure isAdmin is always a boolean
     }, process.env.JWT_SECRET, { expiresIn: '24h' });
+    
+    console.log('🔐 Token created with payload:', {
+      id: req.user.id,
+      name: req.user.displayName,
+      email: userEmail,
+      isAdmin: isAdmin
+    });
     
     // Redirect to frontend with token
     const frontendUrl = new URL(process.env.FRONTEND_URL || 'http://localhost:5173');
     frontendUrl.searchParams.set('token', token);
     
-    // Log the redirect URL
     console.log('🔄 Redirecting to:', frontendUrl.toString());
-    console.log('🎟️ Token:', token);
     
     res.redirect(frontendUrl.toString());
   }
@@ -875,4 +905,12 @@ app.use((err, req, res, next) => {
 // Catch-all for undefined routes (optional)
 app.use((req, res) => {
   res.status(404).send("Sorry, can't find that!");
+});
+
+// Add error handling middleware
+app.use((err, req, res, next) => {
+  console.error('❌ Error:', err);
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal server error'
+  });
 });
