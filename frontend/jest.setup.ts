@@ -1,22 +1,49 @@
 /// <reference types="jest" />
 import '@testing-library/jest-dom';
 
+interface MockLocalStorage {
+  store: { [key: string]: string };
+  getItem: jest.Mock<string | null, [string]>;
+  setItem: jest.Mock<void, [string, string]>;
+  removeItem: jest.Mock<void, [string]>;
+  clear: jest.Mock<void, []>;
+}
+
 // Mock ResizeObserver which isn't available in the test environment
-window.ResizeObserver = jest.fn().mockImplementation(() => ({
+const mockResizeObserver = {
   observe: jest.fn(),
   unobserve: jest.fn(),
   disconnect: jest.fn(),
-}));
-
-// Mock localStorage
-const localStorageMock = {
-  getItem: jest.fn(),
-  setItem: jest.fn(),
-  removeItem: jest.fn(),
-  clear: jest.fn(),
 };
-Object.defineProperty(window, 'localStorage', { value: localStorageMock });
 
+Object.defineProperty(window, 'ResizeObserver', {
+  writable: true,
+  configurable: true,
+  value: jest.fn(() => mockResizeObserver)
+});
+
+// Mock localStorage with a store to actually hold values
+const mockLocalStorage: MockLocalStorage = {
+  store: {},
+  getItem: jest.fn((key: string): string | null => mockLocalStorage.store[key] || null),
+  setItem: jest.fn((key: string, value: string): void => {
+    mockLocalStorage.store[key] = value;
+  }),
+  removeItem: jest.fn((key: string): void => {
+    delete mockLocalStorage.store[key];
+  }),
+  clear: jest.fn((): void => {
+    mockLocalStorage.store = {};
+  })
+};
+
+Object.defineProperty(window, 'localStorage', {
+  value: mockLocalStorage,
+  writable: true,
+  configurable: true
+});
+
+// Mock fetch with proper response handling
 const mockFetch = jest.fn(() =>
   Promise.resolve({
     json: () => Promise.resolve({}),
@@ -24,9 +51,9 @@ const mockFetch = jest.fn(() =>
     status: 200,
     statusText: 'OK',
   })
-) as unknown as typeof fetch;
+);
 
-global.fetch = mockFetch;
+(global as any).fetch = mockFetch;
 
 // Override console.error to catch testing warnings
 const originalConsoleError = console.error;
@@ -42,7 +69,9 @@ console.error = (...args: any[]) => {
   originalConsoleError(...args);
 };
 
-// Clear all mocks before each test
+// Clear all mocks and localStorage before each test
 beforeEach(() => {
   jest.clearAllMocks();
+  mockLocalStorage.clear();
+  mockLocalStorage.store = {};
 }); 
