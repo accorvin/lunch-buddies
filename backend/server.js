@@ -559,7 +559,8 @@ app.delete("/api/locations/:name", authenticateToken, isAdmin, async (req, res) 
 
 // Registration Endpoints (Updated)
 app.post("/api/register", authenticateToken, async (req, res) => {
-  const { name, email, availableDays, location } = req.body; // Add location
+  const { availableDays, location } = req.body;
+  const { name, email } = req.user; // Get name and email from auth user
   
   // Validate input (includes location)
   const validationErrors = validateRegistration({ name, email, availableDays, location });
@@ -577,10 +578,10 @@ app.post("/api/register", authenticateToken, async (req, res) => {
   try {
     console.log(`💾 Saving registration for ${email} in ${location}...`);
     const registrationData = { name, email, availableDays, location };
-    const registration = await saveRegistration(registrationData, req.user.id); // Pass location
+    const registration = await saveRegistration(registrationData, req.user.id);
 
     console.log("✅ Registration successful:", registration);
-    res.status(201).json(registration); // Use 201 for resource creation
+    res.status(201).json(registration);
 
     // Send Slack notification (unchanged for now)
     try {
@@ -604,7 +605,8 @@ app.post("/api/register", authenticateToken, async (req, res) => {
 });
 
 app.put("/api/registration", authenticateToken, async (req, res) => {
-    const { name, email, availableDays, location } = req.body; // Add location
+    const { availableDays, location } = req.body;
+    const { name, email } = req.user; // Get name and email from auth user
   
     // Validate input
     const validationErrors = validateRegistration({ name, email, availableDays, location });
