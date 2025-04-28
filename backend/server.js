@@ -881,6 +881,46 @@ ${feedback}`;
   }
 });
 
+// Admin Registration Cancellation Endpoint
+app.delete("/api/admin/registration/:userId", authenticateToken, async (req, res) => {
+  // Check if user is admin
+  if (!req.user.isAdmin) {
+    return res.status(403).json({ error: "Unauthorized: Admin access required" });
+  }
+
+  const { userId } = req.params;
+  if (!userId) {
+    return res.status(400).json({ error: "User ID is required" });
+  }
+
+  try {
+    // First get the registration to notify the admin
+    const registration = await getRegistrationByUserId(userId);
+    if (!registration) {
+      return res.status(404).json({ error: "Registration not found" });
+    }
+
+    // Delete the registration
+    await deleteRegistration(userId);
+    console.log(`✅ Admin cancelled registration for user ${userId}`);
+
+    // Send Slack notification
+    try {
+      const adminSlackId = await getSlackUserIdByEmail(process.env.SLACK_ADMIN_EMAIL);
+      if (adminSlackId) {
+        await sendSlackDM(adminSlackId, `❌ Admin cancelled registration for ${registration.name} (${registration.email}) in ${registration.location}`);
+      }
+    } catch (slackErr) {
+      console.error("❗ Error sending Slack message for registration cancellation:", slackErr);
+    }
+
+    res.status(200).json({ message: "Registration cancelled successfully" });
+  } catch (err) {
+    console.error("❌ Failed to cancel registration:", err);
+    res.status(500).json({ error: "Failed to cancel registration" });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
