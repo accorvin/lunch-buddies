@@ -2,7 +2,8 @@
 const mockData = {
   registrations: [],
   locations: [],
-  matchHistory: []
+  matchHistory: [],
+  matchSchedule: {}
 };
 
 // Mock DynamoDB client
@@ -13,6 +14,9 @@ const mockDynamoClient = {
     // Handle Get command
     if (command.constructor.name === 'GetCommand') {
       const { TableName, Key } = input;
+      if (TableName === 'matchSchedule') {
+        return { Item: mockData.matchSchedule[Key.id] || null };
+      }
       const items = mockData[TableName] || [];
       const item = items.find(i => i.userId === Key.userId);
       return { Item: item || null };
@@ -36,6 +40,11 @@ const mockDynamoClient = {
     if (command.constructor.name === 'PutCommand') {
       const { TableName, Item } = input;
       
+      if (TableName === 'matchSchedule') {
+        mockData.matchSchedule[Item.id] = Item;
+        return { Item };
+      }
+      
       if (TableName === 'registrations') {
         const index = mockData.registrations.findIndex(r => r.userId === Item.userId);
         if (index >= 0) {
@@ -43,10 +52,22 @@ const mockDynamoClient = {
         } else {
           mockData.registrations.push(Item);
         }
-      } else if (TableName === 'locations') {
-        mockData.locations.push(Item);
-      } else if (TableName === 'matchHistory') {
+        return { Item };
+      }
+      
+      if (TableName === 'locations') {
+        const index = mockData.locations.findIndex(l => l.locationId === Item.locationId);
+        if (index >= 0) {
+          mockData.locations[index] = Item;
+        } else {
+          mockData.locations.push(Item);
+        }
+        return { Item };
+      }
+      
+      if (TableName === 'matchHistory') {
         mockData.matchHistory.push(Item);
+        return { Item };
       }
       
       return { Item };
@@ -55,42 +76,50 @@ const mockDynamoClient = {
     // Handle Delete command
     if (command.constructor.name === 'DeleteCommand') {
       const { TableName, Key } = input;
-      const userId = Key.userId;
-      
       if (TableName === 'registrations') {
-        mockData.registrations = mockData.registrations.filter(r => r.userId !== userId);
-      } else if (TableName === 'locations') {
-        const locationName = Key.name;
-        mockData.locations = mockData.locations.filter(l => l.name !== locationName);
+        mockData.registrations = mockData.registrations.filter(r => r.userId !== Key.userId);
       }
-      
+      if (TableName === 'locations') {
+        mockData.locations = mockData.locations.filter(l => l.locationId !== Key.locationId);
+      }
       return {};
     }
     
     // Handle Scan command
     if (command.constructor.name === 'ScanCommand') {
       const { TableName } = input;
-      const items = mockData[TableName] || [];
-      return { Items: items };
+      return { Items: mockData[TableName] || [] };
     }
     
-    throw new Error(`Unhandled command: ${command.constructor.name}`);
+    throw new Error(`Unsupported command: ${command.constructor.name}`);
   })
 };
 
-// Helper functions for test setup
+// Helper functions for managing mock data
 function clearMockItems() {
   mockData.registrations = [];
   mockData.locations = [];
   mockData.matchHistory = [];
+  mockData.matchSchedule = {};
 }
 
 function seedMockItems(tableName, items) {
-  mockData[tableName] = items;
+  if (tableName === 'matchSchedule') {
+    items.forEach(item => {
+      mockData.matchSchedule[item.id] = item;
+    });
+  } else {
+    mockData[tableName] = items;
+  }
 }
 
 module.exports = {
-  mockDynamoClient,
+  dynamoDB: mockDynamoClient,
+  registrationsTable: 'registrations',
+  matchHistoryTable: 'matchHistory',
+  locationsTable: 'locations',
+  matchScheduleTable: 'matchSchedule',
   clearMockItems,
-  seedMockItems
+  seedMockItems,
+  mockDynamoClient  // Export this for test spying
 }; 

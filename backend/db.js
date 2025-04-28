@@ -1,5 +1,5 @@
 const { PutCommand, GetCommand, QueryCommand, DeleteCommand, ScanCommand } = require('@aws-sdk/lib-dynamodb');
-const { dynamoDB, registrationsTable, matchHistoryTable, locationsTable } = require('./dynamodb');
+const { dynamoDB, registrationsTable, matchHistoryTable, locationsTable, matchScheduleTable } = require('./dynamodb');
 
 // Location operations
 async function getAllLocations() {
@@ -184,11 +184,94 @@ async function getMatchHistory(location = null) {
   return history;
 }
 
+// Match schedule operations
+async function getLastMatchDate() {
+  try {
+    const result = await dynamoDB.send(new GetCommand({
+      TableName: matchScheduleTable,
+      Key: { id: 'lastMatchDate' }
+    }));
+    
+    if (result.Item) {
+      return new Date(result.Item.date);
+    }
+    return null;
+  } catch (error) {
+    console.error('❌ Error getting last match date:', error);
+    return null;
+  }
+}
+
+async function setLastMatchDate(date) {
+  try {
+    await dynamoDB.send(new PutCommand({
+      TableName: matchScheduleTable,
+      Item: {
+        id: 'lastMatchDate',
+        date: date.toISOString()
+      }
+    }));
+    return true;
+  } catch (error) {
+    console.error('❌ Error setting last match date:', error);
+    return false;
+  }
+}
+
+// Matching operations
+async function performMatching() {
+  try {
+    // Get all registrations
+    const registrations = await getAllRegistrations();
+    
+    // Group registrations by location
+    const registrationsByLocation = {};
+    registrations.forEach(reg => {
+      if (!registrationsByLocation[reg.location]) {
+        registrationsByLocation[reg.location] = [];
+      }
+      registrationsByLocation[reg.location].push(reg);
+    });
+
+    const matches = [];
+
+    // Process each location separately
+    for (const [location, locationRegistrations] of Object.entries(registrationsByLocation)) {
+      // Shuffle registrations to randomize matches
+      const shuffledRegistrations = [...locationRegistrations].sort(() => Math.random() - 0.5);
+      
+      // Create pairs
+      for (let i = 0; i < shuffledRegistrations.length; i += 2) {
+        if (i + 1 < shuffledRegistrations.length) {
+          matches.push({
+            users: [
+              shuffledRegistrations[i].userId,
+              shuffledRegistrations[i + 1].userId
+            ],
+            location,
+            date: new Date().toISOString()
+          });
+        }
+      }
+    }
+
+    // Save matches to history
+    if (matches.length > 0) {
+      await saveMatchHistory(matches);
+    }
+
+    return matches;
+  } catch (error) {
+    console.error('Error performing matching:', error);
+    throw error;
+  }
+}
+
 module.exports = {
   // Locations
   getAllLocations,
   saveLocation,
-  deleteLocationByName, // Changed from deleteLocationById
+  deleteLocationByName,
 
   // Registrations
   saveRegistration,
@@ -198,5 +281,12 @@ module.exports = {
 
   // Match History
   saveMatchHistory,
-  getMatchHistory
+  getMatchHistory,
+
+  // Match Schedule
+  getLastMatchDate,
+  setLastMatchDate,
+
+  // Matching
+  performMatching
 }; 

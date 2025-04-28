@@ -15,8 +15,11 @@ const {
   getAllRegistrations, 
   deleteRegistration,
   saveMatchHistory,
-  getMatchHistory
+  getMatchHistory,
+  getLastMatchDate,
+  setLastMatchDate
 } = require('./db');
+const scheduling = require('./scheduling');
 
 // Required environment variables
 const requiredEnvVars = [
@@ -357,23 +360,42 @@ function findMatchesForLocation(registrationsForLocation, locationMatchHistory, 
   return matches;
 }
 
-// Schedule matching
-let lastMatchDate = null;
+// Calculate the next Friday that's 3 weeks from now
+async function getNextMatchDate() {
+  const now = new Date();
+  const currentDay = now.getDay(); // 0 = Sunday, 5 = Friday
+  const daysUntilFriday = (5 - currentDay + 7) % 7; // Days until next Friday
+  const nextFriday = new Date(now);
+  nextFriday.setDate(now.getDate() + daysUntilFriday);
+  
+  // Get the last match date from the database
+  const lastMatchDate = await getLastMatchDate();
+  
+  // If today is Friday, check if we should run matches today
+  if (daysUntilFriday === 0) {
+    // If it's Friday and we haven't run matches this week, run them
+    if (!lastMatchDate || (now - lastMatchDate) >= 7 * 24 * 60 * 60 * 1000) {
+      return now;
+    }
+  }
+  
+  // Add 3 weeks to get the next match date
+  nextFriday.setDate(nextFriday.getDate() + 21);
+  return nextFriday;
+}
 
-async function scheduleMatches() {
-  // Run matching less frequently in production? For now, keep interval
-  if (process.env.NODE_ENV !== 'development' && (!lastMatchDate || 
-      (new Date() - lastMatchDate) >= MATCHING_INTERVAL_DAYS * 24 * 60 * 60 * 1000)) {
-    console.log('⏰ Triggering scheduled matching...');
+// Check if it's time to run matches
+async function checkAndRunMatches() {
+  const now = new Date();
+  const lastMatchDate = await getLastMatchDate();
+  const nextMatchDate = await getNextMatchDate();
+  
+  // If we haven't run matches yet or it's time for the next match
+  if (!lastMatchDate || now >= nextMatchDate) {
+    console.log('⏰ Running scheduled matches...');
     await performMatching();
-    lastMatchDate = new Date();
-  } else if (process.env.NODE_ENV === 'development') {
-      // Maybe run more frequently or on demand in dev? For now, same logic.
-      if (!lastMatchDate || (new Date() - lastMatchDate) >= MATCHING_INTERVAL_DAYS * 24 * 60 * 60 * 1000) {
-          console.log('⏰ Triggering scheduled matching (dev)...');
-          await performMatching();
-          lastMatchDate = new Date();
-      }
+    await setLastMatchDate(new Date());
+    console.log(`✅ Matches completed. Next match scheduled for ${(await getNextMatchDate()).toLocaleString()}`);
   }
 }
 
@@ -833,13 +855,12 @@ app.post("/api/generate-test-data", authenticateToken, isAdmin, async (req, res)
   }
 });
 
-// Schedule regular matching (check every hour)
-setInterval(scheduleMatches, 60 * 60 * 1000); 
-// Run matching check once on startup after a short delay
-setTimeout(() => {
-    console.log('🚀 Initial matching check on startup...');
-    scheduleMatches();
-}, 5000); // Delay 5s
+// Schedule matches to run every day at 9 AM
+const schedule = require('node-schedule');
+schedule.scheduleJob('0 9 * * *', scheduling.checkAndRunMatches);
+
+// Run an initial check on startup
+scheduling.checkAndRunMatches();
 
 // Feedback endpoint
 app.post('/api/feedback', authenticateToken, async (req, res) => {

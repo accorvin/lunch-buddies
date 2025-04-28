@@ -24,12 +24,14 @@ This guide covers setting up both local and production databases for the Lunch B
 2. Create the local tables:
    ```bash
    cd backend
-   npm run setup-local-db
+   NODE_ENV=development node scripts/setup-dynamodb.js
    ```
 
-The local setup will create two tables:
+The local setup will create four tables:
 - `LunchBuddyRegistrations`
 - `LunchBuddyMatchHistory`
+- `LunchBuddyLocations`
+- `LunchBuddyMatchSchedule`
 
 ## Production Setup
 
@@ -75,12 +77,14 @@ DYNAMODB_TABLE_PREFIX=your-prefix  # Optional, for environment separation
 2. Run the setup script:
    ```bash
    cd backend
-   npm run setup-prod-db
+   NODE_ENV=production DYNAMODB_TABLE_PREFIX=prod_ node scripts/setup-dynamodb.js
    ```
 
-This will create two tables in your production DynamoDB:
+This will create four tables in your production DynamoDB:
 - `{prefix}LunchBuddyRegistrations`
 - `{prefix}LunchBuddyMatchHistory`
+- `{prefix}LunchBuddyLocations`
+- `{prefix}LunchBuddyMatchSchedule`
 
 ## Database Schema
 
@@ -114,6 +118,12 @@ This will create two tables in your production DynamoDB:
   - `createdAt` (String, ISO date)
   - `updatedAt` (String, ISO date)
   - `isActive` (Boolean)
+
+### Match Schedule Table
+- **Table Name**: `{prefix}LunchBuddyMatchSchedule`
+- **Primary Key**: `id` (String)
+- **Attributes**:
+  - `date` (String, ISO date)
 
 ## Environment Variables
 
