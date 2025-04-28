@@ -1,16 +1,24 @@
 const { 
+  PutCommand, 
+  GetCommand, 
+  QueryCommand, 
+  DeleteCommand, 
+  ScanCommand 
+} = require('@aws-sdk/lib-dynamodb');
+
+const { 
   mockDynamoClient, 
   clearMockItems, 
-  seedMockItems,
-  registrationsTable
+  seedMockItems
 } = require('../../__mocks__/dynamodb');
 
 // Mock the dynamodb.js module
 jest.mock('../../dynamodb', () => ({
   dynamoDB: mockDynamoClient,
   registrationsTable: 'registrations',
-  matchHistoryTable: 'matchhistory',
-  locationsTable: 'locations'
+  matchHistoryTable: 'matchHistory',
+  locationsTable: 'locations',
+  matchScheduleTable: 'matchSchedule'
 }));
 
 // Import the module under test
@@ -239,7 +247,7 @@ describe('DB Module', () => {
           ]
         }
       ];
-      seedMockItems('matchhistory', testHistory);
+      seedMockItems('matchHistory', testHistory);
 
       const history = await db.getMatchHistory();
       
@@ -268,7 +276,7 @@ describe('DB Module', () => {
           ]
         }
       ];
-      seedMockItems('matchhistory', testHistory);
+      seedMockItems('matchHistory', testHistory);
 
       const history = await db.getMatchHistory('Boston');
       
@@ -283,6 +291,66 @@ describe('DB Module', () => {
       // The first round should have 1 match, the second should have 1 match
       expect(history[0].matches).toHaveLength(1);
       expect(history[1].matches).toHaveLength(1);
+    });
+  });
+
+  describe('Match Schedule Operations', () => {
+    beforeEach(() => {
+      clearMockItems();
+    });
+
+    describe('getLastMatchDate', () => {
+      it('should return null if no last match date exists', async () => {
+        const result = await db.getLastMatchDate();
+        expect(result).toBeNull();
+      });
+
+      it('should return the last match date if it exists', async () => {
+        const testDate = new Date('2024-03-15T12:00:00Z');
+        await mockDynamoClient.send(new PutCommand({
+          TableName: 'matchSchedule',
+          Item: {
+            id: 'lastMatchDate',
+            date: testDate.toISOString()
+          }
+        }));
+
+        const result = await db.getLastMatchDate();
+        expect(result).toEqual(testDate);
+      });
+
+      it('should handle database errors gracefully', async () => {
+        // Mock database error
+        jest.spyOn(mockDynamoClient, 'send').mockRejectedValueOnce(new Error('Database error'));
+        
+        const result = await db.getLastMatchDate();
+        expect(result).toBeNull();
+      });
+    });
+
+    describe('setLastMatchDate', () => {
+      it('should save the last match date', async () => {
+        const testDate = new Date('2024-03-15T12:00:00Z');
+        const result = await db.setLastMatchDate(testDate);
+        
+        expect(result).toBe(true);
+        
+        // Verify the date was saved
+        const saved = await mockDynamoClient.send(new GetCommand({
+          TableName: 'matchSchedule',
+          Key: { id: 'lastMatchDate' }
+        }));
+        
+        expect(saved.Item.date).toBe(testDate.toISOString());
+      });
+
+      it('should handle database errors gracefully', async () => {
+        // Mock database error
+        jest.spyOn(mockDynamoClient, 'send').mockRejectedValueOnce(new Error('Database error'));
+        
+        const result = await db.setLastMatchDate(new Date());
+        expect(result).toBe(false);
+      });
     });
   });
 }); 

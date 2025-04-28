@@ -30,6 +30,51 @@ podman machine init
 podman machine start
 ```
 
+## Database Setup
+
+1. Create a `.env` file in the backend directory:
+```bash
+cd backend
+cp .env.example .env
+```
+
+2. Edit the `.env` file with your configuration:
+```bash
+# Server Configuration
+PORT=8080
+NODE_ENV=production
+
+# Database Configuration
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=your-aws-access-key
+AWS_SECRET_ACCESS_KEY=your-aws-secret-key
+DYNAMODB_TABLE_PREFIX=LunchBuddy
+
+# Google OAuth
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+
+# JWT Configuration
+JWT_SECRET=your-jwt-secret
+
+# CORS Configuration
+FRONTEND_URL=https://your-frontend-domain.com
+
+# Slack Configuration
+SLACK_BOT_TOKEN=your-slack-bot-token
+SLACK_ADMIN_EMAIL=your-admin-email
+ADMIN_EMAILS=your-admin-email,another-admin@example.com
+```
+
+3. Set up DynamoDB tables:
+```bash
+# For development
+NODE_ENV=development node scripts/setup-dynamodb.js
+
+# For production
+NODE_ENV=production node scripts/setup-dynamodb.js
+```
+
 ## Frontend Deployment (AWS Amplify)
 
 1. Build the frontend locally (optional, for testing):
@@ -78,23 +123,17 @@ npm run build
 
 ## Backend Deployment (AWS App Runner)
 
-1. Set up production DynamoDB tables:
-```bash
-cd backend
-node scripts/setup-prod-dynamodb.js
-```
-
-2. Navigate to the backend directory:
+1. Navigate to the backend directory:
 ```bash
 cd backend
 ```
 
-3. Build the container image:
+2. Build the container image:
 ```bash
 podman build -t lunch-buddy-backend -f Backend.containerfile .
 ```
 
-4. Test the container locally:
+3. Test the container locally:
 ```bash
 podman run -p 8080:8080 \
   -e NODE_ENV=production \
@@ -111,23 +150,23 @@ podman run -p 8080:8080 \
   lunch-buddy-backend
 ```
 
-5. Create an ECR repository:
+4. Create an ECR repository:
 ```bash
 aws ecr create-repository --repository-name lunch-buddy-backend
 ```
 
-6. Authenticate Podman to ECR:
+5. Authenticate Podman to ECR:
 ```bash
 aws ecr get-login-password --region us-east-1 | podman login --username AWS --password-stdin $(aws sts get-caller-identity --query Account --output text).dkr.ecr.us-east-1.amazonaws.com
 ```
 
-7. Tag and push the image:
+6. Tag and push the image:
 ```bash
 podman tag localhost/lunch-buddy-backend:latest $(aws sts get-caller-identity --query Account --output text).dkr.ecr.us-east-1.amazonaws.com/lunch-buddy-backend:latest
 podman push $(aws sts get-caller-identity --query Account --output text).dkr.ecr.us-east-1.amazonaws.com/lunch-buddy-backend:latest
 ```
 
-8. Create App Runner service using AWS Console:
+7. Create App Runner service using AWS Console:
    - Go to AWS App Runner console
    - Click "Create service"
    - Choose "Container registry" as source
@@ -169,6 +208,8 @@ podman push $(aws sts get-caller-identity --query Account --output text).dkr.ecr
 - `AWS_REGION`: Your AWS region (e.g., us-east-1)
 - `AWS_ACCESS_KEY_ID`: Your AWS access key ID
 - `AWS_SECRET_ACCESS_KEY`: Your AWS secret access key
+- `DYNAMODB_TABLE_PREFIX`: LunchBuddy (for production) or empty (for development)
+- `ADMIN_EMAILS`: Comma-separated list of admin email addresses
 
 ## Multi-Location Deployment Considerations
 

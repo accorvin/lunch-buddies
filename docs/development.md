@@ -52,8 +52,14 @@ podman run -p 8000:8000 amazon/dynamodb-local
 2. Set up local DynamoDB tables:
 ```bash
 cd backend
-node scripts/setup-local-dynamodb.js
+NODE_ENV=development node scripts/setup-dynamodb.js
 ```
+
+This will create four tables in your local DynamoDB:
+- `LunchBuddyRegistrations`: Stores user registration data
+- `LunchBuddyMatchHistory`: Stores the history of lunch matches
+- `LunchBuddyLocations`: Stores available office locations
+- `LunchBuddyMatchSchedule`: Stores match scheduling data
 
 3. Start the development server:
 ```bash

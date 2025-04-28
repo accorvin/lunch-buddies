@@ -38,10 +38,13 @@ const tablePrefix = isLocal ? '' : process.env.DYNAMODB_TABLE_PREFIX || '';
 const registrationsTable = `${tablePrefix}LunchBuddyRegistrations`;
 const matchHistoryTable = `${tablePrefix}LunchBuddyMatchHistory`;
 const locationsTable = `${tablePrefix}LunchBuddyLocations`;
+const matchScheduleTable = `${tablePrefix}LunchBuddyMatchSchedule`;
 
 module.exports = {
   dynamoDB,
   registrationsTable,
   matchHistoryTable,
-  locationsTable
+  locationsTable,
+  matchScheduleTable,
+  tablePrefix
 }; 
