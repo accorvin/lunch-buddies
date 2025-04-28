@@ -1,5 +1,7 @@
 # Red Hat AI Lunch Buddy Program
 
+[![Tests](https://github.com/RedHatAI/lunch-buddy-app/actions/workflows/tests.yml/badge.svg)](https://github.com/RedHatAI/lunch-buddy-app/actions/workflows/tests.yml)
+
 A modern web application that connects Red Hat AI team members for lunch meetups based on common availability and location preferences.
 
 ## Features
