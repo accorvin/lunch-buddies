@@ -176,28 +176,22 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
   const isEditing = !!registration;
   const { user } = useAuth(); // Get user for default values
 
-  const [name, setName] = useState(registration?.name || user?.name || '');
-  const [email, setEmail] = useState(registration?.email || user?.email || '');
   const [selectedDays, setSelectedDays] = useState<string[]>(sortDays(registration?.availableDays || []));
   const [selectedLocation, setSelectedLocation] = useState<string | undefined>(registration?.location);
   const [isLocationOpen, setIsLocationOpen] = useState(false);
-  const [touched, setTouched] = useState({ name: false, email: false, days: false, location: false });
+  const [touched, setTouched] = useState({ days: false, location: false });
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Update form if user changes (e.g., after login) and not editing
   useEffect(() => {
     if (!isEditing && user) {
-      setName(user.name || '');
-      setEmail(user.email || '');
-      // Do not reset days/location if user logs in while filling form?
+      // Do not reset days/location if user logs in while filling form
     }
   }, [user, isEditing]);
   
    // Update form fields if the registration prop changes (e.g., after saving edit)
    useEffect(() => {
        if (registration) {
-           setName(registration.name);
-           setEmail(registration.email);
            setSelectedDays(sortDays(registration.availableDays));
            setSelectedLocation(registration.location);
        }
@@ -225,10 +219,12 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
   };
 
   const handleSubmit = async () => {
+    if (!user) return;
+    
     setIsSubmitting(true);
     const dataToSave = { 
-        name: name.trim(), 
-        email: email.trim(), 
+        name: user.name || '', 
+        email: user.email || '', 
         availableDays: selectedDays, 
         location: selectedLocation || '' // Ensure location is a string
     };
@@ -236,45 +232,37 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
         await onSave(dataToSave);
         // Reset form only if it was a new registration
         if (!isEditing) {
-            setName(user?.name || '');
-            setEmail(user?.email || '');
             setSelectedDays([]);
             setSelectedLocation(undefined);
-            setTouched({ name: false, email: false, days: false, location: false });
+            setTouched({ days: false, location: false });
         }
     } finally {
         setIsSubmitting(false);
     }
   };
 
-  const isFormValid = name.trim() && 
-                      email.trim() && 
-                      isValidEmail(email.trim()) && 
-                      selectedDays.length > 0 &&
-                      !!selectedLocation;
+  const isFormValid = selectedDays.length > 0 && !!selectedLocation;
 
   return (
     <Form>
-      <FormGroup label="Name" isRequired fieldId="name-input">
+      <FormGroup label="Name" fieldId="name-display">
         <TextInput
-          id="name-input" value={name} type="text" isDisabled={isSubmitting}
-          onBlur={() => setTouched(prev => ({ ...prev, name: true }))}
-          onChange={(_evt, value) => setName(value)}
-          placeholder="Your Name"
-          validated={touched.name && !name.trim() ? "error" : "default"}
+          id="name-display"
+          value={user?.name || ''}
+          type="text"
+          isDisabled
+          readOnly
         />
-      {touched.name && !name.trim() && <div className="pf-v5-c-form__helper-text pf-m-error">Name is required</div>}
       </FormGroup>
 
-      <FormGroup label="Email" isRequired fieldId="email-input">
+      <FormGroup label="Email" fieldId="email-display">
         <TextInput
-          id="email-input" value={email} type="email" isDisabled={isSubmitting}
-          onBlur={() => setTouched(prev => ({ ...prev, email: true }))}
-          onChange={(_evt, value) => setEmail(value)}
-          placeholder="your.email@redhat.com"
-          validated={touched.email && (!email.trim() || !isValidEmail(email.trim())) ? "error" : "default"}
+          id="email-display"
+          value={user?.email || ''}
+          type="email"
+          isDisabled
+          readOnly
         />
-        {touched.email && (!email.trim() || !isValidEmail(email.trim())) && <div className="pf-v5-c-form__helper-text pf-m-error">Enter a valid email address</div>}
       </FormGroup>
       
       <FormGroup label="Location" isRequired fieldId="location-select">
