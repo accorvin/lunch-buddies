@@ -1158,6 +1158,30 @@ const LunchBuddyApp = () => {
     }
   };
 
+  // Add this function to handle admin cancellation
+  const handleAdminCancelRegistration = async (userId: string) => {
+    if (!isAdmin) {
+      showToast("Unauthorized: Admin access required", "danger");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await fetchWithAuth(`${BACKEND_URL}/api/admin/registration/${userId}`, {
+        method: 'DELETE'
+      });
+      
+      showToast("Registration cancelled successfully", "success");
+      // Refresh the participant list
+      loadParticipants(participantLocationFilter);
+    } catch (err) {
+      console.error("Failed to cancel registration:", err);
+      showToast(err instanceof Error ? err.message : "Failed to cancel registration", "danger");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // --- Render Logic ---
 
   if (authLoading || (isDataLoading && !user)) { // Show spinner only during auth load or initial data load without user
@@ -1399,6 +1423,7 @@ const LunchBuddyApp = () => {
                                            <Th>Email</Th>
                                            <Th>Location</Th>
                                            <Th>Available Days</Th>
+                                           <Th>Actions</Th>
                                        </Tr>
                                    </Thead>
                                    <Tbody>
@@ -1407,7 +1432,16 @@ const LunchBuddyApp = () => {
                                                <Td dataLabel="Name">{p.name}</Td>
                                                <Td dataLabel="Email">{p.email}</Td>
                                                <Td dataLabel="Location"><Badge isRead>{p.location}</Badge></Td>
-                                               <Td dataLabel="Available Days">{sortDays(p.availableDays).join(", ") || "—"}</Td>
+                                               <Td dataLabel="Available Days">{sortDays(p.availableDays).join(", ")}</Td>
+                                               <Td>
+                                                   <PFButton
+                                                       variant="danger"
+                                                       onClick={() => handleAdminCancelRegistration(p.userId)}
+                                                       isDisabled={isSubmitting}
+                                                   >
+                                                       Cancel Registration
+                                                   </PFButton>
+                                               </Td>
                                            </Tr>
                                        ))}
                                    </Tbody>

@@ -1,7 +1,8 @@
 const { 
   mockDynamoClient, 
   clearMockItems, 
-  seedMockItems 
+  seedMockItems,
+  registrationsTable
 } = require('../../__mocks__/dynamodb');
 
 // Mock the dynamodb.js module
@@ -151,11 +152,27 @@ describe('DB Module', () => {
 
     test('deleteRegistration should remove a user registration', async () => {
       // Seed test data
-      seedMockItems('registrations', [
-        { userId: 'user1', name: 'User 1', location: 'Boston' }
-      ]);
+      const testReg = { 
+        userId: 'test_user', 
+        name: 'Test User', 
+        email: 'test@example.com',
+        location: 'Boston',
+        availableDays: ['Monday']
+      };
+      seedMockItems('registrations', [testReg]);
 
-      await db.deleteRegistration('user1');
+      await db.deleteRegistration('test_user');
+      expect(mockDynamoClient.send).toHaveBeenCalledTimes(1);
+      
+      // Verify the correct command was sent
+      const deleteCommand = mockDynamoClient.send.mock.calls[0][0];
+      expect(deleteCommand.input.TableName).toBe('registrations');
+      expect(deleteCommand.input.Key.userId).toBe('test_user');
+    });
+
+    test('deleteRegistration should handle non-existent registration gracefully', async () => {
+      // No test data seeded
+      await expect(db.deleteRegistration('non_existent_user')).resolves.not.toThrow();
       expect(mockDynamoClient.send).toHaveBeenCalledTimes(1);
     });
   });
