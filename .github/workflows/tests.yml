@@ -29,6 +29,16 @@ jobs:
       working-directory: backend
     
     - name: Run backend tests
+      env:
+        NODE_ENV: test
+        JWT_SECRET: test-secret
+        BACKEND_URL: http://localhost:3000
+        DEFAULT_ADMIN_IN_DEV: true
+        # Optional variables for test environment
+        SLACK_BOT_TOKEN: xoxb-test-token
+        SLACK_ADMIN_EMAIL: test@example.com
+        GOOGLE_CLIENT_ID: test-client-id
+        GOOGLE_CLIENT_SECRET: test-client-secret
       run: npm test
       working-directory: backend
     
