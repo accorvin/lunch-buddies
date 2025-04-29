@@ -23,12 +23,16 @@ const scheduling = require('./scheduling');
 
 // Required environment variables
 const requiredEnvVars = [
+  'JWT_SECRET',
+  'BACKEND_URL'
+];
+
+// Optional environment variables (required in production)
+const optionalEnvVars = [
   'SLACK_BOT_TOKEN',
   'SLACK_ADMIN_EMAIL',
   'GOOGLE_CLIENT_ID',
-  'GOOGLE_CLIENT_SECRET',
-  'JWT_SECRET',
-  'BACKEND_URL'
+  'GOOGLE_CLIENT_SECRET'
 ];
 
 // Define weekdays array
@@ -40,6 +44,16 @@ if (missingEnvVars.length > 0) {
   console.error('❌ Missing required environment variables:');
   missingEnvVars.forEach(envVar => console.error(`   - ${envVar}`));
   process.exit(1);
+}
+
+// Log missing optional variables in non-test environments
+if (process.env.NODE_ENV !== 'test') {
+  const missingOptionalVars = optionalEnvVars.filter(envVar => !process.env[envVar]);
+  if (missingOptionalVars.length > 0) {
+    console.error('⚠️ Missing optional environment variables:');
+    missingOptionalVars.forEach(envVar => console.error(`   - ${envVar}`));
+    process.exit(1);
+  }
 }
 
 const app = express();
