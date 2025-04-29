@@ -1,7 +1,7 @@
 const db = require('./db');
 
 /**
- * Calculates the next date when matches should be run
+ * Gets the manually set next match date if it exists, otherwise calculates it
  * @returns {Promise<Date>} The next date when matches should be run
  */
 async function getNextMatchDate() {
@@ -12,9 +12,14 @@ async function getNextMatchDate() {
   const lastMatchDate = await db.getLastMatchDate();
   console.log('Last match date:', lastMatchDate);
   
-  // If we have a last match date, calculate when the next match should be
+  // If we have a last match date that's in the future, use it
   if (lastMatchDate) {
     const lastMatchDay = new Date(lastMatchDate);
+    if (lastMatchDay > today) {
+      console.log('Using manually set future match date:', lastMatchDay);
+      return lastMatchDay;
+    }
+    
     // If it's been less than 3 weeks since the last match, schedule for 3 weeks from the last match
     const threeWeeksFromLastMatch = new Date(lastMatchDay);
     threeWeeksFromLastMatch.setDate(lastMatchDay.getDate() + 21);

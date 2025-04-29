@@ -77,6 +77,7 @@ import {
 } from '@patternfly/react-icons';
 import { BACKEND_URL } from './config';
 import FeedbackForm from './components/FeedbackForm';
+import NextMatchDatePicker from './components/NextMatchDatePicker';
 
 // --- Shared Components ---
 // Moved to top to potentially help linter
@@ -651,14 +652,39 @@ const ProgramInfoModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ 
 };
 
 // Re-added CountdownTile component
-const CountdownTile: React.FC = () => {
+const CountdownTile: React.FC<{ nextMatchDate: Date | null }> = ({ nextMatchDate }) => {
   const [timeLeft, setTimeLeft] = useState<string>('Calculating...');
   
-  // Simplified: Just show a static message for now. 
-  // A real implementation might fetch the next match date from the backend.
   useEffect(() => {
-     setTimeLeft('Approx. 3 weeks'); // Placeholder
-  }, []);
+    if (!nextMatchDate) {
+      setTimeLeft('Not set');
+      return;
+    }
+
+    const calculateTimeLeft = () => {
+      const now = new Date();
+      const diff = nextMatchDate.getTime() - now.getTime();
+      
+      if (diff <= 0) {
+        setTimeLeft('Today');
+        return;
+      }
+
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      
+      if (days > 0) {
+        setTimeLeft(`${days} day${days === 1 ? '' : 's'}`);
+      } else {
+        setTimeLeft(`${hours} hour${hours === 1 ? '' : 's'}`);
+      }
+    };
+
+    calculateTimeLeft();
+    const interval = setInterval(calculateTimeLeft, 1000 * 60); // Update every minute
+    
+    return () => clearInterval(interval);
+  }, [nextMatchDate]);
   
   return (
     <PFCard className="pf-v5-u-h-100">
@@ -667,7 +693,13 @@ const CountdownTile: React.FC = () => {
            <FlexItem><CalendarAltIcon /></FlexItem>
            <FlexItem><Title headingLevel="h3" size="lg">Next Match Round In</Title></FlexItem>
            <FlexItem><Text component={TextVariants.h1} className="pf-v5-u-font-size-2xl">{timeLeft}</Text></FlexItem>
-           <FlexItem><Text component={TextVariants.small}>Matches sent periodically.</Text></FlexItem>
+           {nextMatchDate && (
+             <FlexItem>
+               <Text component={TextVariants.small}>
+                 Scheduled for {nextMatchDate.toLocaleDateString()}
+               </Text>
+             </FlexItem>
+           )}
         </Flex>
       </CardBody>
     </PFCard>
@@ -720,6 +752,7 @@ const LunchBuddyApp = () => {
   const [statsLocationFilter, setStatsLocationFilter] = useState<string | null>(null);
 
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const [nextMatchDate, setNextMatchDate] = useState<Date | null>(null);
 
   const isDevelopment = import.meta.env.DEV;
 
@@ -792,6 +825,7 @@ const LunchBuddyApp = () => {
           setParticipants([]);
           setLocations([]);
           setIsAdmin(false);
+          setNextMatchDate(null);
           clearForm(false); // Clear form without user data
           return;
       };
@@ -805,8 +839,8 @@ const LunchBuddyApp = () => {
           setLocations(locationsData || []);
           console.log('Locations loaded:', locationsData);
           
-          // Fetch registration, participants, admin status in parallel
-          const [regData, participantsData, adminData] = await Promise.all([
+          // Fetch registration, participants, admin status, and next match date in parallel
+          const [regData, participantsData, adminData, nextMatchDateData] = await Promise.all([
               fetchWithAuth(`${BACKEND_URL}/api/my-registration`).catch(err => {
                    console.warn('Could not load user registration:', err.message); // Non-fatal usually
                    return null; // Default to null if fetch fails
@@ -824,6 +858,10 @@ const LunchBuddyApp = () => {
                   }
                   console.error('Failed to check admin status:', err.message);
                   return { isAdmin: false }; // Default to non-admin on error
+              }),
+              fetchWithAuth(`${BACKEND_URL}/api/next-match-date`).catch(err => {
+                  console.warn('Could not load next match date:', err.message);
+                  return { nextMatchDate: null };
               })
           ]);
           
@@ -848,6 +886,9 @@ const LunchBuddyApp = () => {
           console.log('Admin Status determined:', adminData);
           setIsAdmin(adminData?.isAdmin || false);
 
+          console.log('Next match date loaded:', nextMatchDateData);
+          setNextMatchDate(nextMatchDateData?.nextMatchDate ? new Date(nextMatchDateData.nextMatchDate) : null);
+
       } catch (err) {
           console.error("Failed to load initial data:", err);
           setAppError(err instanceof Error ? err.message : 'Failed to load application data. Please try refreshing.');
@@ -856,6 +897,7 @@ const LunchBuddyApp = () => {
           setParticipants([]);
           setLocations([]); // Keep locations if fetched?
           setIsAdmin(false);
+          setNextMatchDate(null);
           clearForm(false);
       } finally {
           setIsDataLoading(false);
@@ -1125,7 +1167,7 @@ const LunchBuddyApp = () => {
     setIsDataLoading(true);
     try {
       // Refresh locations and other admin data
-      const [locationsData, adminData] = await Promise.all([
+      const [locationsData, adminData, nextMatchDateData] = await Promise.all([
         fetchWithAuth(`${BACKEND_URL}/api/locations`).catch(err => {
           console.warn('Could not load locations:', err.message);
           return [];
@@ -1133,11 +1175,16 @@ const LunchBuddyApp = () => {
         fetchWithAuth(`${BACKEND_URL}/api/is-admin`).catch(err => {
           console.error('Failed to check admin status:', err.message);
           return { isAdmin: false };
+        }),
+        fetchWithAuth(`${BACKEND_URL}/api/next-match-date`).catch(err => {
+          console.warn('Could not load next match date:', err.message);
+          return { nextMatchDate: null };
         })
       ]);
       
       setLocations(locationsData || []);
       setIsAdmin(adminData?.isAdmin || false);
+      setNextMatchDate(nextMatchDateData?.nextMatchDate ? new Date(nextMatchDateData.nextMatchDate) : null);
     } catch (err) {
       console.error("Failed to load admin data:", err);
       showToast(err instanceof Error ? err.message : 'Failed to load admin data', 'danger');
@@ -1167,6 +1214,34 @@ const LunchBuddyApp = () => {
       showToast(err instanceof Error ? err.message : "Failed to cancel registration", "danger");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleSaveNextMatchDate = async (date: Date) => {
+    if (!isAdmin) {
+      showToast("Unauthorized: Admin access required", "danger");
+      return;
+    }
+
+    try {
+      const data = await fetchWithAuth(`${BACKEND_URL}/api/next-match-date`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ date: date.toISOString() }),
+      });
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to save next match date');
+      }
+
+      setNextMatchDate(date);
+      showToast("Next match date saved successfully", "success");
+    } catch (error) {
+      console.error("Error saving next match date:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to save next match date";
+      showToast(errorMessage, "danger");
     }
   };
 
@@ -1325,7 +1400,7 @@ const LunchBuddyApp = () => {
 
               {/* Countdown Tile */}
               <GridItem span={12} lg={4}>
-                 <CountdownTile />
+                 <CountdownTile nextMatchDate={nextMatchDate} />
               </GridItem>
 
               {/* Participants List Card */}
@@ -1492,39 +1567,51 @@ const LunchBuddyApp = () => {
            {isDataLoading ? <Spinner/> : (
                <Grid hasGutter>
                    <GridItem span={12} md={6}>
+                       <PFCard>
+                           <CardTitle>Next Match Date</CardTitle>
+                           <CardBody>
+                               <NextMatchDatePicker 
+                                 onSave={handleSaveNextMatchDate} 
+                                 onCancel={() => {}} 
+                                 initialDate={nextMatchDate}
+                               />
+                           </CardBody>
+                       </PFCard>
+                   </GridItem>
+                   <GridItem span={12} md={6}>
                         <LocationManager 
                             locations={locations} 
                             onLocationsChange={setLocations}
                             fetchWithAuthFn={fetchWithAuth}
                         />
                    </GridItem>
-                    <GridItem span={12} md={6}>
-                       <PFCard isFlat className="pf-v5-u-h-100">
-                           <CardTitle>Actions</CardTitle>
-                           <CardBody>
-                                <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsMd' }}>
-                                    <FlexItem>
-                                        <PFButton variant="primary" onClick={handleAdminMatch} isLoading={isSubmitting} isDisabled={isSubmitting}>Generate Matches Now</PFButton>
-                                    </FlexItem>
-                                    <FlexItem>
-                                        <PFButton variant="secondary" onClick={() => handleAdminViewMatchHistory(historyLocationFilter)} isLoading={isSubmitting} isDisabled={isSubmitting}>View Match History</PFButton>
-                                    </FlexItem>
-                                    {isDevelopment && (
-                                         <FlexItem>
-                                            <PFButton variant="secondary" onClick={handleAdminGenerateTestData} isLoading={isSubmitting} isDisabled={isSubmitting}>Generate Test Data</PFButton>
-                                        </FlexItem>
-                                    )}
-                                 </Flex>
-                           </CardBody>
-                       </PFCard>
-                    </GridItem>
+                   <GridItem span={12} md={6}>
+                        <PFCard isFlat className="pf-v5-u-h-100">
+                            <CardTitle>Actions</CardTitle>
+                            <CardBody>
+                                 <Flex direction={{ default: 'column' }} spaceItems={{ default: 'spaceItemsMd' }}>
+                                     <FlexItem>
+                                         <PFButton variant="primary" onClick={handleAdminMatch} isLoading={isSubmitting} isDisabled={isSubmitting}>Generate Matches Now</PFButton>
+                                     </FlexItem>
+                                     <FlexItem>
+                                         <PFButton variant="secondary" onClick={() => handleAdminViewMatchHistory(historyLocationFilter)} isLoading={isSubmitting} isDisabled={isSubmitting}>View Match History</PFButton>
+                                     </FlexItem>
+                                     {isDevelopment && (
+                                          <FlexItem>
+                                             <PFButton variant="secondary" onClick={handleAdminGenerateTestData} isLoading={isSubmitting} isDisabled={isSubmitting}>Generate Test Data</PFButton>
+                                         </FlexItem>
+                                     )}
+                                  </Flex>
+                            </CardBody>
+                        </PFCard>
+                   </GridItem>
                    <GridItem span={12}>
-                       <StatisticsView 
-                            locations={locations}
-                            selectedLocationFilter={statsLocationFilter}
-                            onLocationFilterChange={setStatsLocationFilter} 
-                            fetchWithAuthFn={fetchWithAuth}
-                       />
+                        <StatisticsView 
+                             locations={locations}
+                             selectedLocationFilter={statsLocationFilter}
+                             onLocationFilterChange={setStatsLocationFilter} 
+                             fetchWithAuthFn={fetchWithAuth}
+                        />
                    </GridItem>
                </Grid>
            )}

@@ -23,12 +23,16 @@ const scheduling = require('./scheduling');
 
 // Required environment variables
 const requiredEnvVars = [
+  'JWT_SECRET',
+  'BACKEND_URL'
+];
+
+// Optional environment variables (required in production)
+const optionalEnvVars = [
   'SLACK_BOT_TOKEN',
   'SLACK_ADMIN_EMAIL',
   'GOOGLE_CLIENT_ID',
-  'GOOGLE_CLIENT_SECRET',
-  'JWT_SECRET',
-  'BACKEND_URL'
+  'GOOGLE_CLIENT_SECRET'
 ];
 
 // Define weekdays array
@@ -40,6 +44,16 @@ if (missingEnvVars.length > 0) {
   console.error('❌ Missing required environment variables:');
   missingEnvVars.forEach(envVar => console.error(`   - ${envVar}`));
   process.exit(1);
+}
+
+// Log missing optional variables in non-test environments
+if (process.env.NODE_ENV !== 'test') {
+  const missingOptionalVars = optionalEnvVars.filter(envVar => !process.env[envVar]);
+  if (missingOptionalVars.length > 0) {
+    console.error('⚠️ Missing optional environment variables:');
+    missingOptionalVars.forEach(envVar => console.error(`   - ${envVar}`));
+    process.exit(1);
+  }
 }
 
 const app = express();
@@ -859,10 +873,14 @@ app.post("/api/generate-test-data", authenticateToken, isAdmin, async (req, res)
 
 // Schedule matches to run every day at 9 AM
 const schedule = require('node-schedule');
-schedule.scheduleJob('0 9 * * *', scheduling.checkAndRunMatches);
+let scheduledJob;
 
-// Run an initial check on startup
-scheduling.checkAndRunMatches();
+if (process.env.NODE_ENV !== 'test') {
+  scheduledJob = schedule.scheduleJob('0 9 * * *', scheduling.checkAndRunMatches);
+  
+  // Run an initial check on startup
+  scheduling.checkAndRunMatches();
+}
 
 // Feedback endpoint
 app.post('/api/feedback', authenticateToken, async (req, res) => {
@@ -944,20 +962,78 @@ app.delete("/api/admin/registration/:userId", authenticateToken, async (req, res
   }
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
-  console.log(` M Mode: ${process.env.NODE_ENV}`);
-  console.log(` F Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
-  console.log(` B Backend URL: ${process.env.BACKEND_URL}`);
-  // Log DynamoDB table names being used
-  console.log(` D DynamoDB Tables:`);
-  const { registrationsTable, matchHistoryTable, locationsTable } = require('./dynamodb');
-  console.log(`    -> Registrations: ${registrationsTable}`);
-  console.log(`    -> Match History: ${matchHistoryTable}`);
-  console.log(`    -> Locations: ${locationsTable}`);
-  console.log(` A Admin Emails: ${adminEmails.join(', ') || 'None configured (dev mode only)'}`);
+// New endpoint for setting next match date
+app.post('/api/next-match-date', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const { date } = req.body;
+    if (!date) {
+      return res.status(400).json({ error: 'Date is required' });
+    }
+
+    // Parse the date and ensure it's in UTC
+    const matchDate = new Date(date);
+    if (isNaN(matchDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid date format' });
+    }
+
+    // Create a UTC date at noon to avoid timezone issues
+    const utcDate = new Date(Date.UTC(
+      matchDate.getUTCFullYear(),
+      matchDate.getUTCMonth(),
+      matchDate.getUTCDate(),
+      12, // noon
+      0,
+      0
+    ));
+
+    // Ensure date is in the future
+    const now = new Date();
+    if (utcDate <= now) {
+      return res.status(400).json({ error: 'Match date must be in the future' });
+    }
+
+    // Set the next match date
+    await setLastMatchDate(utcDate);
+    res.json({ success: true, nextMatchDate: utcDate.toISOString() });
+  } catch (error) {
+    console.error('Error setting next match date:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
+
+// New endpoint for getting next match date
+app.get('/api/next-match-date', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const nextMatchDate = await scheduling.getNextMatchDate();
+    res.json({ nextMatchDate: nextMatchDate.toISOString() });
+  } catch (error) {
+    console.error('Error getting next match date:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Export the app and scheduled job for testing
+module.exports = { 
+  app,
+  scheduledJob // Export for cleanup in tests if needed
+};
+
+// Start server only if this file is run directly
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`✅ Server running on port ${PORT}`);
+    console.log(` M Mode: ${process.env.NODE_ENV}`);
+    console.log(` F Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
+    console.log(` B Backend URL: ${process.env.BACKEND_URL}`);
+    // Log DynamoDB table names being used
+    console.log(` D DynamoDB Tables:`);
+    const { registrationsTable, matchHistoryTable, locationsTable } = require('./dynamodb');
+    console.log(`    -> Registrations: ${registrationsTable}`);
+    console.log(`    -> Match History: ${matchHistoryTable}`);
+    console.log(`    -> Locations: ${locationsTable}`);
+    console.log(` A Admin Emails: ${adminEmails.join(', ') || 'None configured (dev mode only)'}`);
+  });
+}
 
 // Basic error handling (optional)
 app.use((err, req, res, next) => {
