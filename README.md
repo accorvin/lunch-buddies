@@ -13,6 +13,7 @@ A modern web application that connects Red Hat AI team members for lunch meetups
 - 📝 Match history viewing and feedback submission
 - 📱 Slack integration for notifications and admin communications
 - 🌐 Multi-location support with site leader management
+- 💬 Customizable per-location notification messages with template variables
 
 ## Tech Stack
 
@@ -44,12 +45,18 @@ cd lunch-buddy-app
 
 2. Backend Setup:
 ```bash
+# Start local DynamoDB instance
+podman run -p 8000:8000 amazon/dynamodb-local
+
+# In a new terminal:
 cd backend
 npm install
 cp .env.example .env  # Edit with your configuration
-npm run setup-local-db  # Sets up local DynamoDB tables
+NODE_ENV=development node scripts/setup-dynamodb.js  # Sets up local DynamoDB tables
 npm run dev
 ```
+
+> **Note**: For detailed database setup instructions, see [Database Setup Guide](docs/database-setup.md)
 
 3. Frontend Setup:
 ```bash
