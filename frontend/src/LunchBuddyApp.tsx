@@ -7,6 +7,7 @@ import {
   Card as PFCard,
   CardBody,
   TextInput,
+  TextArea,
   Form,
   FormGroup,
   Title,
@@ -73,7 +74,10 @@ import {
   PlusCircleIcon,
   TrashIcon,
   TimesIcon,
-  CommentIcon
+  CommentIcon,
+  EditIcon,
+  CheckCircleIcon,
+  ExclamationTriangleIcon
 } from '@patternfly/react-icons';
 import { BACKEND_URL } from './config';
 import FeedbackForm from './components/FeedbackForm';
@@ -340,7 +344,7 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
 const LocationManager: React.FC<{
     locations: Location[];
     onLocationsChange: (locations: Location[]) => void;
-    fetchWithAuthFn: (url: string, options?: RequestInit) => Promise<Response>;
+    fetchWithAuthFn: (url: string, options?: RequestInit) => Promise<any>;
 }> = ({ locations, onLocationsChange, fetchWithAuthFn }) => {
     const [newLocationName, setNewLocationName] = useState<string>('');
     const [isAdding, setIsAdding] = useState(false);
@@ -416,6 +420,244 @@ const LocationManager: React.FC<{
                 </div>
             </CardBody>
         </PFCard>
+    );
+};
+
+// Interface for location with message details
+interface LocationWithMessage {
+    locationId: string;
+    name: string;
+    customMessage: string | null;
+    createdAt: string;
+}
+
+// Message editor modal component
+const MessageEditorModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    location: LocationWithMessage | null;
+    onSave: (locationName: string, message: string | null) => Promise<void>;
+}> = ({ isOpen, onClose, location, onSave }) => {
+    const [message, setMessage] = useState<string>('');
+    const [isCustom, setIsCustom] = useState<boolean>(false);
+    const [isSaving, setIsSaving] = useState<boolean>(false);
+
+    const defaultMessage = `🎉 You've been matched for lunch in {location} with {buddyName}!
+
+Common available days: {commonDays}
+Email: {buddyEmail}
+
+Reach out to schedule your lunch! 🍽️`;
+
+    useEffect(() => {
+        if (location) {
+            if (location.customMessage) {
+                setMessage(location.customMessage);
+                setIsCustom(true);
+            } else {
+                setMessage(defaultMessage);
+                setIsCustom(false);
+            }
+        }
+    }, [location]);
+
+    const handleSave = async () => {
+        if (!location) return;
+        setIsSaving(true);
+        try {
+            await onSave(location.name, isCustom ? message : null);
+            onClose();
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const previewMessage = message
+        .replace(/{location}/g, location?.name || 'Your Location')
+        .replace(/{buddyName}/g, 'John Smith')
+        .replace(/{buddyEmail}/g, 'john.smith@redhat.com')
+        .replace(/{commonDays}/g, 'Monday, Wednesday, Friday');
+
+    return (
+        <Modal
+            variant="large"
+            title={`Edit Message for ${location?.name}`}
+            isOpen={isOpen}
+            onClose={onClose}
+            actions={[
+                <PFButton key="save" variant="primary" onClick={handleSave} isLoading={isSaving}>
+                    Save Message
+                </PFButton>,
+                <PFButton key="cancel" variant="link" onClick={onClose}>
+                    Cancel
+                </PFButton>
+            ]}
+        >
+            <Form>
+                <FormGroup>
+                    <Checkbox
+                        id="use-custom-message"
+                        label="Use custom message for this location"
+                        isChecked={isCustom}
+                        onChange={(_event, checked) => {
+                            setIsCustom(checked);
+                            if (!checked) {
+                                setMessage(defaultMessage);
+                            }
+                        }}
+                    />
+                </FormGroup>
+                
+                <FormGroup label="Message Template" fieldId="message-template">
+                    <TextArea
+                        id="message-template"
+                        value={message}
+                        onChange={(_event, value) => setMessage(value)}
+                        rows={8}
+                        isDisabled={!isCustom}
+                        placeholder="Enter your custom message template..."
+                    />
+                    <Text component="small" className="pf-v5-u-color-200">
+                        Available variables: {"{location}"}, {"{buddyName}"}, {"{buddyEmail}"}, {"{commonDays}"}
+                    </Text>
+                </FormGroup>
+
+                <FormGroup label="Preview" fieldId="message-preview">
+                    <div style={{ 
+                        border: '1px solid #ccc', 
+                        borderRadius: '4px', 
+                        padding: '12px', 
+                        backgroundColor: '#f9f9f9',
+                        whiteSpace: 'pre-wrap'
+                    }}>
+                        {previewMessage}
+                    </div>
+                </FormGroup>
+            </Form>
+        </Modal>
+    );
+};
+
+// Location notification manager component  
+const LocationNotificationManager: React.FC<{
+    locations: Location[];
+    fetchWithAuthFn: (url: string, options?: RequestInit) => Promise<any>;
+}> = ({ locations, fetchWithAuthFn }) => {
+    const [locationsWithMessages, setLocationsWithMessages] = useState<LocationWithMessage[]>([]);
+    const [isLoading, setIsLoading] = useState<boolean>(true);
+    const [selectedLocation, setSelectedLocation] = useState<LocationWithMessage | null>(null);
+    const [isEditorOpen, setIsEditorOpen] = useState<boolean>(false);
+
+    // Fetch location details with message information
+    const fetchLocationDetails = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            console.log('🔍 Fetching location details from:', `${BACKEND_URL}/api/locations/details`);
+            const data = await fetchWithAuthFn(`${BACKEND_URL}/api/locations/details`);
+            console.log('📋 Location details data:', data);
+            setLocationsWithMessages(data);
+        } catch (error) {
+            console.error('❌ Failed to fetch location details:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [fetchWithAuthFn]);
+
+    useEffect(() => {
+        fetchLocationDetails();
+    }, [fetchLocationDetails]);
+
+    const handleEditMessage = (location: LocationWithMessage) => {
+        setSelectedLocation(location);
+        setIsEditorOpen(true);
+    };
+
+    const handleSaveMessage = async (locationName: string, message: string | null) => {
+        try {
+            await fetchWithAuthFn(`${BACKEND_URL}/api/locations/${encodeURIComponent(locationName)}/message`, {
+                method: 'PUT',
+                body: JSON.stringify({ customMessage: message })
+            });
+            // Refresh the location details
+            await fetchLocationDetails();
+        } catch (error) {
+            console.error('Failed to save message:', error);
+            throw error;
+        }
+    };
+
+    return (
+        <>
+            <PFCard isFlat>
+                <CardTitle>Notification Messages</CardTitle>
+                <CardBody>
+                    {isLoading ? (
+                        <Spinner size="md" />
+                    ) : (
+                        <div>
+                            <Text component="p" className="pf-v5-u-mb-md">
+                                Customize the notification messages sent to participants when matches are created for each location.
+                            </Text>
+                            <div className="pf-v5-u-mt-md">
+                                {locationsWithMessages.length === 0 ? (
+                                    <EmptyState variant="sm">
+                                        <EmptyStateHeader titleText="No Locations Found" headingLevel="h4" icon={<EmptyStateIcon icon={MapMarkerAltIcon} />} />
+                                        <EmptyStateBody>
+                                            No locations have been configured yet. Add locations in the Location Management section above to customize their notification messages.
+                                        </EmptyStateBody>
+                                    </EmptyState>
+                                ) : (
+                                    locationsWithMessages.map(location => (
+                                    <div key={location.locationId} className="pf-v5-u-mb-md pf-v5-u-p-md" style={{ border: '1px solid #ccc', borderRadius: '4px' }}>
+                                        <Flex justifyContent={{ default: 'justifyContentSpaceBetween' }} alignItems={{ default: 'alignItemsCenter' }}>
+                                            <FlexItem>
+                                                <Flex direction={{ default: 'column' }}>
+                                                    <FlexItem>
+                                                        <strong>{location.name}</strong>
+                                                    </FlexItem>
+                                                    <FlexItem>
+                                                        <Flex spaceItems={{ default: 'spaceItemsXs' }} alignItems={{ default: 'alignItemsCenter' }}>
+                                                            {location.customMessage ? (
+                                                                <>
+                                                                    <CheckCircleIcon color="var(--pf-v5-global--success-color--100)" />
+                                                                    <Text component="small">Custom message</Text>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <ExclamationTriangleIcon color="var(--pf-v5-global--warning-color--100)" />
+                                                                    <Text component="small">Using default message</Text>
+                                                                </>
+                                                            )}
+                                                        </Flex>
+                                                    </FlexItem>
+                                                </Flex>
+                                            </FlexItem>
+                                            <FlexItem>
+                                                <PFButton 
+                                                    variant="secondary" 
+                                                    icon={<EditIcon />}
+                                                    onClick={() => handleEditMessage(location)}
+                                                >
+                                                    Edit Message
+                                                </PFButton>
+                                            </FlexItem>
+                                        </Flex>
+                                    </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </CardBody>
+            </PFCard>
+
+            <MessageEditorModal
+                isOpen={isEditorOpen}
+                onClose={() => setIsEditorOpen(false)}
+                location={selectedLocation}
+                onSave={handleSaveMessage}
+            />
+        </>
     );
 };
 
@@ -1604,6 +1846,12 @@ const LunchBuddyApp = () => {
                                   </Flex>
                             </CardBody>
                         </PFCard>
+                   </GridItem>
+                   <GridItem span={12} md={6}>
+                        <LocationNotificationManager 
+                            locations={locations}
+                            fetchWithAuthFn={fetchWithAuth}
+                        />
                    </GridItem>
                    <GridItem span={12}>
                         <StatisticsView 

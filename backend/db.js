@@ -25,11 +25,91 @@ async function getAllLocations() {
   }
 }
 
-async function saveLocation(locationName) {
+async function getAllLocationsWithDetails() {
+  try {
+    const command = new ScanCommand({
+      TableName: locationsTable
+    });
+    const response = await dynamoDB.send(command);
+    const locations = response.Items || [];
+    // Sort the locations by name and return full objects
+    return locations
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(location => ({
+        locationId: location.locationId,
+        name: location.name,
+        customMessage: location.customMessage || null,
+        createdAt: location.createdAt
+      }));
+  } catch (error) {
+    console.error('Error getting locations with details:', error);
+    throw error;
+  }
+}
+
+async function getLocationMessage(locationName) {
+  try {
+    const command = new GetCommand({
+      TableName: locationsTable,
+      Key: { locationId: locationName }
+    });
+    const response = await dynamoDB.send(command);
+    if (response.Item) {
+      return response.Item.customMessage || DEFAULT_MATCH_MESSAGE;
+    }
+    return DEFAULT_MATCH_MESSAGE;
+  } catch (error) {
+    console.error('Error getting location message:', error);
+    return DEFAULT_MATCH_MESSAGE; // Fallback to default
+  }
+}
+
+async function updateLocationMessage(locationName, customMessage) {
+  try {
+    // Get existing location first
+    const getCommand = new GetCommand({
+      TableName: locationsTable,
+      Key: { locationId: locationName }
+    });
+    const response = await dynamoDB.send(getCommand);
+    
+    if (!response.Item) {
+      throw new Error(`Location "${locationName}" not found`);
+    }
+
+    // Update with new message
+    const updateItem = {
+      ...response.Item,
+      customMessage: customMessage || null,
+      updatedAt: new Date().toISOString()
+    };
+
+    await dynamoDB.send(new PutCommand({
+      TableName: locationsTable,
+      Item: updateItem
+    }));
+
+    return updateItem;
+  } catch (error) {
+    console.error('Error updating location message:', error);
+    throw error;
+  }
+}
+
+// Default notification message template
+const DEFAULT_MATCH_MESSAGE = `🎉 You've been matched for lunch in {location} with {buddyName}!
+
+Common available days: {commonDays}
+Email: {buddyEmail}
+
+Reach out to schedule your lunch! 🍽️`;
+
+async function saveLocation(locationName, customMessage = null) {
   const item = {
     locationId: locationName, // Use locationId as the key in production
     name: locationName,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    customMessage: customMessage || null // Store custom message if provided
   };
   await dynamoDB.send(new PutCommand({
     TableName: locationsTable,
@@ -47,7 +127,7 @@ async function deleteLocationByName(locationName) {
 
   await dynamoDB.send(new DeleteCommand({
     TableName: locationsTable,
-    Key: { name: locationName }
+    Key: { locationId: locationName }
   }));
 }
 
@@ -270,8 +350,12 @@ async function performMatching() {
 module.exports = {
   // Locations
   getAllLocations,
+  getAllLocationsWithDetails,
+  getLocationMessage,
+  updateLocationMessage,
   saveLocation,
   deleteLocationByName,
+  DEFAULT_MATCH_MESSAGE,
 
   // Registrations
   saveRegistration,

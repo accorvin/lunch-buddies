@@ -13,6 +13,7 @@ A modern web application that connects Red Hat AI team members for lunch meetups
 - 📝 Match history viewing and feedback submission
 - 📱 Slack integration for notifications and admin communications
 - 🌐 Multi-location support with site leader management
+- 💬 Customizable per-location notification messages with template variables
 
 ## Tech Stack
 

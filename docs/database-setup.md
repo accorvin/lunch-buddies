@@ -112,18 +112,41 @@ This will create four tables in your production DynamoDB:
 - **Table Name**: `{prefix}LunchBuddyLocations`
 - **Primary Key**: `locationId` (String)
 - **Attributes**:
-  - `name` (String)
-  - `description` (String)
-  - `siteLeaderEmail` (String)
-  - `createdAt` (String, ISO date)
-  - `updatedAt` (String, ISO date)
-  - `isActive` (Boolean)
+  - `name` (String) - Display name of the location
+  - `customMessage` (String, optional) - Custom notification message template for this location
+  - `createdAt` (String, ISO date) - When the location was created
+  - `updatedAt` (String, ISO date) - When the location was last modified (added when customMessage is updated)
 
 ### Match Schedule Table
 - **Table Name**: `{prefix}LunchBuddyMatchSchedule`
 - **Primary Key**: `id` (String)
 - **Attributes**:
   - `date` (String, ISO date)
+
+## Notification Message Templates
+
+The application supports customizable notification messages for each location:
+
+### Default Message Template
+```
+🎉 You've been matched for lunch in {location} with {buddyName}!
+
+Common available days: {commonDays}
+Email: {buddyEmail}
+
+Reach out to schedule your lunch! 🍽️
+```
+
+### Template Variables
+- `{location}` - Name of the location where the match was made
+- `{buddyName}` - Name of the matched lunch buddy
+- `{buddyEmail}` - Email address of the matched lunch buddy  
+- `{commonDays}` - Comma-separated list of days both participants are available
+
+### Storage
+- Custom messages are stored in the `customMessage` field of the Locations table
+- If `customMessage` is `null` or empty, the default template is used
+- Template variables are replaced at notification send time
 
 ## Environment Variables
 

@@ -111,6 +111,32 @@ The Lunch Buddy app supports multiple locations for participant matching. This f
    - Verify matching logic respects location preferences
    - Test location-specific statistics
 
+## Per-Location Notification Messages
+
+The app supports customizable notification messages for each location:
+
+1. Features:
+   - Custom message templates per location
+   - Template variables: `{location}`, `{buddyName}`, `{buddyEmail}`, `{commonDays}`
+   - Live preview with sample data
+   - Default message fallback for locations without custom messages
+
+2. Admin Interface:
+   - "Notification Messages" card in admin dashboard
+   - Visual indicators for custom vs default messages
+   - Modal editor with template variables and preview
+
+3. Development Considerations:
+   - Test message customization for different locations
+   - Verify template variable substitution works correctly
+   - Check that default messages are used when no custom message is set
+   - Test message persistence across app restarts
+
+4. API Endpoints:
+   - `GET /api/locations/details` - Get locations with message details
+   - `GET /api/locations/:name/message` - Get message template for location
+   - `PUT /api/locations/:name/message` - Update custom message for location
+
 ## Project Structure
 
 ```

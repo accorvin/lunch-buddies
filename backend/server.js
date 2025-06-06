@@ -8,8 +8,12 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const { 
   getAllLocations,
+  getAllLocationsWithDetails,
+  getLocationMessage,
+  updateLocationMessage,
   saveLocation,
   deleteLocationByName,
+  DEFAULT_MATCH_MESSAGE,
   saveRegistration, 
   getRegistrationByUserId, 
   getAllRegistrations, 
@@ -413,6 +417,15 @@ async function checkAndRunMatches() {
   }
 }
 
+// Function to generate personalized message from template
+function generatePersonalizedMessage(template, buddyName, buddyEmail, location, commonDays) {
+  return template
+    .replace(/{location}/g, location)
+    .replace(/{buddyName}/g, buddyName)
+    .replace(/{buddyEmail}/g, buddyEmail)
+    .replace(/{commonDays}/g, commonDays.join(', '));
+}
+
 // Updated matching process for multi-location
 async function performMatching() {
   console.log('🚀 Starting matching process...');
@@ -463,22 +476,25 @@ async function performMatching() {
               const slackUserId1 = await getSlackUserIdByEmail(person1.email);
               const slackUserId2 = await getSlackUserIdByEmail(person2.email);
 
-              // Construct messages
-              const message1 = `🎉 You've been matched for lunch in ${location} with ${person2.name}!
-` +
-                  `Common available days: ${match.commonDays.join(", ")}
-` +
-                  `Email: ${person2.email}
-` +
-                  `Reach out to schedule your lunch! 🍽️`;
+              // Get location-specific message template
+              const messageTemplate = await getLocationMessage(location);
+              
+              // Construct personalized messages using the template
+              const message1 = generatePersonalizedMessage(
+                messageTemplate,
+                person2.name,
+                person2.email,
+                location,
+                match.commonDays
+              );
 
-              const message2 = `🎉 You've been matched for lunch in ${location} with ${person1.name}!
-` +
-                  `Common available days: ${match.commonDays.join(", ")}
-` +
-                  `Email: ${person1.email}
-` +
-                  `Reach out to schedule your lunch! 🍽️`;
+              const message2 = generatePersonalizedMessage(
+                messageTemplate,
+                person1.name,
+                person1.email,
+                location,
+                match.commonDays
+              );
 
               // Send DMs
               if (TEST_MODE) {
@@ -568,6 +584,71 @@ app.delete("/api/locations/:name", authenticateToken, isAdmin, async (req, res) 
         return res.status(400).json({ error: err.message });
     }
     res.status(500).json({ error: `Failed to delete location "${locationName}"` });
+  }
+});
+
+// Get locations with message details (for admin interface)
+app.get("/api/locations/details", authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const locations = await getAllLocationsWithDetails();
+    res.json(locations);
+  } catch (err) {
+    console.error("❌ Failed to retrieve location details:", err);
+    res.status(500).json({ error: "Failed to retrieve location details" });
+  }
+});
+
+// Get message template for a specific location
+app.get("/api/locations/:name/message", authenticateToken, isAdmin, async (req, res) => {
+  const locationName = req.params.name;
+  if (!locationName) {
+    return res.status(400).json({ error: "Location name parameter is required" });
+  }
+
+  try {
+    const message = await getLocationMessage(locationName);
+    const isCustom = message !== DEFAULT_MATCH_MESSAGE;
+    res.json({ 
+      locationName, 
+      message, 
+      isCustom,
+      defaultMessage: DEFAULT_MATCH_MESSAGE 
+    });
+  } catch (err) {
+    console.error(`❌ Failed to get message for location "${locationName}":`, err);
+    res.status(500).json({ error: `Failed to get message for location "${locationName}"` });
+  }
+});
+
+// Update message template for a specific location
+app.put("/api/locations/:name/message", authenticateToken, isAdmin, async (req, res) => {
+  const locationName = req.params.name;
+  const { customMessage } = req.body;
+  
+  if (!locationName) {
+    return res.status(400).json({ error: "Location name parameter is required" });
+  }
+
+  // Allow empty string to reset to default
+  if (customMessage !== null && customMessage !== undefined && typeof customMessage !== 'string') {
+    return res.status(400).json({ error: "Custom message must be a string or null" });
+  }
+
+  try {
+    const updatedLocation = await updateLocationMessage(locationName, customMessage || null);
+    console.log(`✅ Admin ${req.user.email} updated message for location: ${locationName}`);
+    res.json({
+      locationName,
+      message: updatedLocation.customMessage || DEFAULT_MATCH_MESSAGE,
+      isCustom: !!updatedLocation.customMessage,
+      updatedAt: updatedLocation.updatedAt
+    });
+  } catch (err) {
+    console.error(`❌ Failed to update message for location "${locationName}":`, err);
+    if (err.message.includes('not found')) {
+      return res.status(404).json({ error: err.message });
+    }
+    res.status(500).json({ error: `Failed to update message for location "${locationName}"` });
   }
 });
 
