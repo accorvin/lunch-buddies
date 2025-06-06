@@ -1,4 +1,4 @@
-const { DEFAULT_MATCH_MESSAGE } = require('../../db');
+const { DEFAULT_MATCH_MESSAGE, getLocationMessage, updateLocationMessage } = require('../../db');
 
 // Helper function to generate personalized message from template
 function generatePersonalizedMessage(template, buddyName, buddyEmail, location, commonDays) {
@@ -10,6 +10,9 @@ function generatePersonalizedMessage(template, buddyName, buddyEmail, location, 
 }
 
 describe('Message Template System', () => {
+  // Note: The getLocationMessage and updateLocationMessage functions now include
+  // fallback logic to handle cases where locationId and name don't match exactly
+  // This fixes production issues where data has inconsistent casing
   test('should generate personalized message from default template', () => {
     const result = generatePersonalizedMessage(
       DEFAULT_MATCH_MESSAGE,
