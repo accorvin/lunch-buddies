@@ -49,14 +49,36 @@ async function getAllLocationsWithDetails() {
 
 async function getLocationMessage(locationName) {
   try {
-    const command = new GetCommand({
+    // First try exact match with locationId
+    let command = new GetCommand({
       TableName: locationsTable,
       Key: { locationId: locationName }
     });
-    const response = await dynamoDB.send(command);
+    let response = await dynamoDB.send(command);
+    
     if (response.Item) {
       return response.Item.customMessage || DEFAULT_MATCH_MESSAGE;
     }
+    
+    // If no exact match, try case-insensitive search by scanning the table
+    const scanCommand = new ScanCommand({
+      TableName: locationsTable,
+      FilterExpression: '#name = :name OR #locationId = :locationId',
+      ExpressionAttributeNames: {
+        '#name': 'name',
+        '#locationId': 'locationId'
+      },
+      ExpressionAttributeValues: {
+        ':name': locationName,
+        ':locationId': locationName
+      }
+    });
+    
+    const scanResponse = await dynamoDB.send(scanCommand);
+    if (scanResponse.Items && scanResponse.Items.length > 0) {
+      return scanResponse.Items[0].customMessage || DEFAULT_MATCH_MESSAGE;
+    }
+    
     return DEFAULT_MATCH_MESSAGE;
   } catch (error) {
     console.error('Error getting location message:', error);
@@ -66,15 +88,33 @@ async function getLocationMessage(locationName) {
 
 async function updateLocationMessage(locationName, customMessage) {
   try {
-    // Get existing location first
-    const getCommand = new GetCommand({
+    // First try exact match with locationId
+    let getCommand = new GetCommand({
       TableName: locationsTable,
       Key: { locationId: locationName }
     });
-    const response = await dynamoDB.send(getCommand);
+    let response = await dynamoDB.send(getCommand);
     
+    // If no exact match, try finding by name or locationId
     if (!response.Item) {
-      throw new Error(`Location "${locationName}" not found`);
+      const scanCommand = new ScanCommand({
+        TableName: locationsTable,
+        FilterExpression: '#name = :name OR #locationId = :locationId',
+        ExpressionAttributeNames: {
+          '#name': 'name',
+          '#locationId': 'locationId'
+        },
+        ExpressionAttributeValues: {
+          ':name': locationName,
+          ':locationId': locationName
+        }
+      });
+      
+      const scanResponse = await dynamoDB.send(scanCommand);
+      if (!scanResponse.Items || scanResponse.Items.length === 0) {
+        throw new Error(`Location "${locationName}" not found`);
+      }
+      response.Item = scanResponse.Items[0];
     }
 
     // Update with new message
