@@ -1,7 +1,8 @@
 # Development Guide
 
 ## Prerequisites
-- Node.js 18.x
+- Node.js 18.x or higher
+- npm 7.x or higher
 - Git
 - Podman (for local DynamoDB)
 - AWS CLI (for deployment)
@@ -10,19 +11,19 @@
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/your-username/lunch-buddy-app.git
+git clone https://github.com/your-org/lunch-buddy-app.git
 cd lunch-buddy-app
 ```
 
-2. Install frontend dependencies:
+2. Install backend dependencies:
 ```bash
-cd frontend
+cd backend
 npm install
 ```
 
-3. Install backend dependencies:
+3. Install frontend dependencies:
 ```bash
-cd ../backend
+cd ../frontend
 npm install
 ```
 
@@ -37,7 +38,12 @@ npm run dev
 The frontend will be available at `http://localhost:5173`
 
 2. Environment variables:
-Create a `.env` file in the frontend directory:
+Copy the example environment file and edit with your configuration:
+```bash
+cp .env.example .env  # Edit with your configuration
+```
+
+The `.env` file should contain:
 ```env
 VITE_BACKEND_URL=http://localhost:8080
 VITE_GOOGLE_CLIENT_ID=your-google-client-id
@@ -68,7 +74,12 @@ npm run dev
 The backend will be available at `http://localhost:8080`
 
 4. Environment variables:
-Create a `.env` file in the backend directory:
+Copy the example environment file and edit with your configuration:
+```bash
+cp .env.example .env  # Edit with your configuration
+```
+
+The `.env` file should contain:
 ```env
 NODE_ENV=development
 PORT=8080
@@ -109,10 +120,13 @@ lunch-buddy-app/
 │   ├── public/        # Static assets
 │   └── package.json   # Frontend dependencies
 ├── backend/           # Backend Node.js application
-│   ├── src/          # Source code
-│   ├── scripts/      # Database setup scripts
-│   └── package.json  # Backend dependencies
-└── docs/             # Documentation
+│   ├── routes/        # API route handlers
+│   ├── middleware/    # Express middleware
+│   ├── scripts/       # Database setup scripts
+│   ├── __tests__/     # Backend tests
+│   ├── server.js      # Main server file
+│   └── package.json   # Backend dependencies
+└── docs/              # Documentation
 ```
 
 ## Development Workflow
